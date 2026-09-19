@@ -171,6 +171,33 @@ class NotificationServiceTest {
     }
 
     @Test
+    void shouldNotifyFailureAtFirstAndTenthReminder() {
+        configuredSite();
+        service.handleFailed(new SiteFailedEvent(1L, 1, "timeout"));
+        assertThat(webhook.sent).hasSize(1);
+        assertThat(webhook.sent.get(0).type()).isEqualTo(NotificationType.FAILED);
+
+        service.handleFailed(new SiteFailedEvent(1L, 2, "timeout"));
+        assertThat(webhook.sent).hasSize(1);
+
+        service.handleFailed(new SiteFailedEvent(1L, 10, "timeout"));
+        assertThat(webhook.sent).hasSize(2);
+        assertThat(webhook.sent.get(1).type()).isEqualTo(NotificationType.FAILED);
+
+        service.handleFailed(new SiteFailedEvent(1L, 11, "timeout"));
+        assertThat(webhook.sent).hasSize(2);
+    }
+
+    @Test
+    void shouldDispatchWebhookOnlyWhenNotifyEmailBlank() {
+        AutoSite site = configuredSite();
+        site.setNotifyEmail("   ");
+        service.handleUpdated(changed(3, 0, 0, null, 2, false));
+        assertThat(webhook.sent).hasSize(1);
+        assertThat(email.sent).isEmpty();
+    }
+
+    @Test
     void shouldRespectFailureSwitchAndGlobalKillSwitch() {
         AutoSite site = configuredSite();
         site.setNotifyOnFailure(false);
