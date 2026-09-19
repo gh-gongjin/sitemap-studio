@@ -43,6 +43,15 @@ public class AutoSiteVersion {
     @Column(name = "sitemap_xml", nullable = false)
     private String sitemapXml;
 
+    @Column(name = "diff_added", nullable = false)
+    private int diffAdded;
+
+    @Column(name = "diff_removed", nullable = false)
+    private int diffRemoved;
+
+    @Column(name = "diff_changed", nullable = false)
+    private int diffChanged;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }

@@ -64,9 +64,52 @@ public class AutoSite {
     @Column(name = "last_message", length = 512)
     private String lastMessage;
 
+    /** 连续爬取失败次数；成功即清零。包装类型：存量行升级后该列为 NULL */
+    @Column(name = "consecutive_failures")
+    private Integer consecutiveFailures;
+
+    @Column(name = "notify_webhook_url", length = 2048)
+    private String notifyWebhookUrl;
+
+    @Column(name = "notify_webhook_secret_enc", length = 1024)
+    private String notifyWebhookSecretEnc;
+
+    @Column(name = "notify_email", length = 256)
+    private String notifyEmail;
+
+    @Column(name = "notify_on_change")
+    private Boolean notifyOnChange;
+
+    @Column(name = "notify_on_failure")
+    private Boolean notifyOnFailure;
+
+    @Column(name = "notify_seo_error_threshold")
+    private Integer notifySeoErrorThreshold;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    public boolean isNotifyOnChangeEffective() {
+        return notifyOnChange == null || notifyOnChange;
+    }
+
+    public boolean isNotifyOnFailureEffective() {
+        return notifyOnFailure == null || notifyOnFailure;
+    }
+
+    public int consecutiveFailuresOrZero() {
+        return consecutiveFailures == null ? 0 : consecutiveFailures;
+    }
+
+    public int notifySeoErrorThresholdOrOff() {
+        return notifySeoErrorThreshold == null ? -1 : notifySeoErrorThreshold;
+    }
+
+    public boolean hasNotifyChannelConfigured() {
+        return (notifyWebhookUrl != null && !notifyWebhookUrl.isBlank())
+                || (notifyEmail != null && !notifyEmail.isBlank());
+    }
 }
