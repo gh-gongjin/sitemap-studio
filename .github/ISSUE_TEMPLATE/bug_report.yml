@@ -1,0 +1,61 @@
+name: Bug report
+description: Report something that is not working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. Screenshots help a lot.
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Enter URL '...'
+        3. Click '...'
+        4. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: false
+      options:
+        - Crawl / sitemap generation
+        - SEO report / export
+        - Auto-update / push (SFTP/FTP/FTPS/IndexNow)
+        - Auth / account isolation
+        - UI / i18n
+        - Build / deployment
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Release tag (e.g. v1.0.0) or commit SHA you built from.
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, JDK version, browser, how you started the app (start.bat / java -jar / source).
+      placeholder: Windows 11, JDK 21.0.x, Chrome, `java -jar target/sitemap-studio-1.0.0.jar`
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Paste any console/server logs. Redact anything sensitive.
+      render: shell

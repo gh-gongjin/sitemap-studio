@@ -1,5 +1,9 @@
 # Sitemap Studio
 
+[![CI](https://github.com/gh-gongjin/sitemap-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/gh-gongjin/sitemap-studio/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache2.0-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/gh-gongjin/sitemap-studio?include_prereleases)](https://github.com/gh-gongjin/sitemap-studio/releases)
+
 **English** | [中文](#中文说明)
 
 A free, self-hosted sitemap generator with a bilingual (中文 / English) web UI.
@@ -89,6 +93,10 @@ global Maven configuration.
 
 Apache License 2.0 — see [LICENSE](LICENSE).
 
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) for the
+branch/PR workflow and project conventions, and [SECURITY.md](SECURITY.md) for
+private vulnerability reporting.
+
 ---
 
 <a name="中文说明"></a>
@@ -149,3 +157,6 @@ mvn verify  # 含测试与打包的完整构建
 ## 许可证
 
 Apache License 2.0，详见 [LICENSE](LICENSE)。
+
+欢迎贡献代码：分支/PR 流程与项目约定见 [CONTRIBUTING.md](CONTRIBUTING.md)，
+安全漏洞请通过 [SECURITY.md](SECURITY.md) 描述的私有渠道报告。
