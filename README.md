@@ -16,7 +16,7 @@ Windows 下运行统一入口：
 start.bat
 ```
 
-脚本会切换到自身目录、输出 Java/Maven 版本、执行 `mvn verify`（包含测试和打包，不清理历史产物、不跳过测试），然后在前台运行 `target/sitemap-generator-1.0.0.jar`。任何一步失败都会返回对应退出码；结束后恢复调用时的目录。
+脚本会切换到自身目录、输出 Java/Maven 版本、执行 `mvn verify`（包含测试和打包，不清理历史产物、不跳过测试），然后在前台运行 `target/sitemap-studio-1.0.0.jar`。任何一步失败都会返回对应退出码；结束后恢复调用时的目录。
 
 `run-server.bat`、`run-springboot.bat`、`quick-start.bat` 均只转调 `start.bat`，透传参数和退出码。脚本参数传给 Java 应用，例如：
 
@@ -30,7 +30,7 @@ start.bat --server.port=8081
 
 ```sh
 mvn verify
-java -jar target/sitemap-generator-1.0.0.jar
+java -jar target/sitemap-studio-1.0.0.jar
 ```
 
 ## 测试与依赖缓存
@@ -48,7 +48,7 @@ mvn verify
 
 ```sh
 mvn -o verify
-java -jar target/sitemap-generator-1.0.0.jar
+java -jar target/sitemap-studio-1.0.0.jar
 ```
 
 项目内的 `.mvn/maven.config` 和 HTTPS Maven settings 仅用于项目构建，不修改用户全局配置。如需沿用已有依赖缓存，可显式指定本地仓库（将占位内容替换为实际路径）：
