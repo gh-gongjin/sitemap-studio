@@ -380,8 +380,9 @@ class AutoSiteControllerTest {
                 .containsExactly("每天", "成功", "09-18 10:00", "09-19 10:00");
         assertThat(page.select(".url-table tbody tr")).hasSize(2);
         assertThat(page.select(".url-table .pr").eachText()).containsExactly("v3", "v2");
-        assertThat(page.select(".url-table .lm").eachText()).containsExactly("42", "2026-09-18 10:00",
-                "40", "2026-09-18 10:00");
+        // 版本表新增「变化」列（Task 10）：非首版渲染 +n −n ~n 徽标链接（− 为 U+2212）
+        assertThat(page.select(".url-table .lm").eachText()).containsExactly("42", "+0 −0 ~0", "2026-09-18 10:00",
+                "40", "+0 −0 ~0", "2026-09-18 10:00");
     }
 
     @Test

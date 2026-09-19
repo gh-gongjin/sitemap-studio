@@ -5,6 +5,8 @@ import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.security.SecurityUtils;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
+import io.github.ghgongjin.sitemap.service.Csv;
+import io.github.ghgongjin.sitemap.service.SiteDiffEngine;
 import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.PushSettings;
@@ -168,6 +170,85 @@ public class AutoSiteController {
         headers.setContentDispositionFormData("attachment", "sitemap-v" + target.getVersionNumber() + ".xml");
         headers.setContentLength(body.length);
         return ResponseEntity.ok().headers(headers).body(body);
+    }
+
+    @GetMapping("/{id}/versions/{v}/diff")
+    public String diffPage(@PathVariable Long id, @PathVariable("v") int v, Model model) {
+        AutoSite site = requireOwned(id, SecurityUtils.currentUserId());
+        AutoSiteVersion version = requireVersion(id, v);
+        model.addAttribute("site", site);
+        model.addAttribute("version", version);
+        model.addAttribute("view", diffView(id, version));
+        return "auto-diff";
+    }
+
+    @GetMapping("/{id}/versions/{v}/diff.csv")
+    public ResponseEntity<byte[]> diffCsv(@PathVariable Long id, @PathVariable("v") int v) {
+        requireOwned(id, SecurityUtils.currentUserId());
+        AutoSiteVersion version = requireVersion(id, v);
+        DiffView view = diffView(id, version);
+        if (!"OK".equals(view.state())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        StringBuilder csv = new StringBuilder("\uFEFF");
+        Csv.row(csv, "type", "url");
+        view.added().forEach(url -> Csv.row(csv, "added", url));
+        view.removed().forEach(url -> Csv.row(csv, "removed", url));
+        view.changed().forEach(url -> Csv.row(csv, "changed", url));
+        byte[] body = csv.toString().getBytes(StandardCharsets.UTF_8);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(new MediaType("text", "csv", StandardCharsets.UTF_8));
+        headers.setContentDispositionFormData("attachment", "sitemap-diff-v" + v + ".csv");
+        headers.setContentLength(body.length);
+        return ResponseEntity.ok().headers(headers).body(body);
+    }
+
+    private AutoSiteVersion requireVersion(Long id, int v) {
+        return autoSiteService.version(id, v)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    /**
+     * 明细按需实时算：v1=FIRST；上一版已被裁剪/XML 缺失/解析异常=UNAVAILABLE；否则 OK（每组截断 100）
+     */
+    private DiffView diffView(Long siteId, AutoSiteVersion version) {
+        if (version.getVersionNumber() == 1) {
+            return DiffView.of("FIRST", null);
+        }
+        AutoSiteVersion previous = autoSiteService.version(siteId, version.getVersionNumber() - 1)
+                .orElse(null);
+        if (previous == null) {
+            return DiffView.of("UNAVAILABLE", null);
+        }
+        try {
+            return DiffView.of("OK", SiteDiffEngine.diff(previous.getSitemapXml(), version.getSitemapXml()));
+        } catch (Exception e) {
+            log.warn("版本 diff 实时计算失败：siteId={}, v={}, {}", siteId, version.getVersionNumber(), e.getMessage());
+            return DiffView.of("UNAVAILABLE", null);
+        }
+    }
+
+    // 模板 SpEL 需反射调用 overflow()：record 与方法必须 public，包私有会抛 IllegalAccessException
+    public record DiffView(String state, List<String> added, List<String> removed, List<String> changed,
+                    int addedCount, int removedCount, int changedCount) {
+
+        static final int PREVIEW_LIMIT = 100;
+
+        static DiffView of(String state, SiteDiffEngine.SiteDiff diff) {
+            if (diff == null) {
+                return new DiffView(state, List.of(), List.of(), List.of(), 0, 0, 0);
+            }
+            return new DiffView(state,
+                    diff.added().stream().limit(PREVIEW_LIMIT).toList(),
+                    diff.removed().stream().limit(PREVIEW_LIMIT).toList(),
+                    diff.changed().stream().limit(PREVIEW_LIMIT).toList(),
+                    diff.added().size(), diff.removed().size(), diff.changed().size());
+        }
+
+        public int overflow() {
+            return Math.max(Math.max(addedCount - PREVIEW_LIMIT, removedCount - PREVIEW_LIMIT),
+                    changedCount - PREVIEW_LIMIT);
+        }
     }
 
     private String mutate(RedirectAttributes redirect, String flashKey, String path, Runnable action) {

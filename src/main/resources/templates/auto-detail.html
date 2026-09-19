@@ -296,6 +296,7 @@
           <tr>
             <th th:text="#{auto.th.vno}">版本</th>
             <th th:text="#{auto.th.urls}">URL 数</th>
+            <th th:text="#{auto.th.changes}">变化</th>
             <th th:text="#{auto.th.time}">生成时间</th>
             <th th:text="#{auto.th.actions}">操作</th>
           </tr>
@@ -304,6 +305,12 @@
           <tr th:each="v : ${versions}">
             <td class="pr mono" th:text="${'v' + v.versionNumber}">v1</td>
             <td class="lm" th:text="${v.urlCount}">0</td>
+            <td class="lm diff-badges">
+              <span th:if="${v.versionNumber == 1}" class="state state-pending" th:text="#{auto.diff.first}">首个快照</span>
+              <a th:unless="${v.versionNumber == 1}" class="link mono"
+                 th:href="@{/auto/{id}/versions/{v}/diff(id=${site.id}, v=${v.versionNumber})}"
+                 th:text="${'+' + v.diffAdded + ' −' + v.diffRemoved + ' ~' + v.diffChanged}">+0 −0 ~0</a>
+            </td>
             <td class="lm" th:text="${v.createdAt != null ? #temporals.format(v.createdAt, 'yyyy-MM-dd HH:mm') : '—'}">—</td>
             <td>
               <a class="link" th:href="@{/auto/{id}/download(id=${site.id}, version=${v.versionNumber})}"
