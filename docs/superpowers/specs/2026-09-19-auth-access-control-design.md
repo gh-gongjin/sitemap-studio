@@ -80,7 +80,7 @@ fragments/layout.html        顶栏改造：匿名→"登录 / 注册"；已登�
 
 ### 6.1 注册
 
-表单 POST `/register`（带 CSRF 令牌）→ `UserService` 校验（用户名格式、密码 ≥8 位含字母和数字、两次输入一致、用户名未占用）→ 入库 → 手动写入 `SecurityContext` 并持久化到会话 → 302 到来源页或首页。任一校验失败：重渲染 `/register`，内联错误文案（i18n），已填用户名保留。
+表单 POST `/register`（带 CSRF 令牌）→ `UserService` 校验（用户名格式、密码 ≥8 位含字母和数字、两次输入一致、用户名未占用）→ 入库 → 302 到 `/login?registered=1`，登录页内联提示"注册成功，请登录"，由用户完成登录（登录后回跳来源页）。任一校验失败：重渲染 `/register`，内联错误文案（i18n），已填用户名保留。（2026-09-19 实现期经用户确认修订：不采用"注册即手动写入 SecurityContext 自动登录"，以更简单安全的引导登录替代，规避会话固定处理复杂度。）
 
 ### 6.2 登录
 
@@ -114,7 +114,7 @@ Spring Security `formLogin`：`/login` 页、`/login` POST、失败 `?error=1` �
 
 | 测试类 | 覆盖 |
 |--------|------|
-| `AuthIntegrationTest` | 注册成功自动登录并回跳；重名/弱密码/两次不一致/非法用户名分别报对应错误；`POST /register` 缺 CSRF → 403；登录成功；错误密码 `?error`；已登录访问 `/login` → 302 首页；退出后会话失效 |
+| `AuthIntegrationTest` | 注册成功 → `/login?registered=1` 引导登录，登录后回跳；重名/弱密码/两次不一致/非法用户名分别报对应错误；`POST /register` 缺 CSRF → 403；登录成功；错误密码 `?error`；已登录访问 `/login` → 302 首页；退出后会话失效 |
 | `ReportAccessControlTest` | 游客 `/reports`、`/report/{id}`、`/report/{id}/export` → 302 → `/login` 且无下载头；A 登录后看不到 B 的报告、访问 B 的报告/导出 → 404；A 的爬取任务完成后报告 `user_id` 绑定正确且列表可见 |
 | `AutoAccessControlTest` | 游客 `/auto` 与全部 POST → 302；B 不能 run/toggle/delete/push 配置 A 的站点（404）；`AutoSiteUpdater` 生成的报告归属站点所有者 |
 | `UserServiceTest` | 密码哈希后可用 encoder 校验、明文不入库；用户名查重 |
