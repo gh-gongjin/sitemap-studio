@@ -186,15 +186,17 @@ public class AutoSiteController {
     public ResponseEntity<byte[]> diffCsv(@PathVariable Long id, @PathVariable("v") int v) {
         requireOwned(id, SecurityUtils.currentUserId());
         AutoSiteVersion version = requireVersion(id, v);
-        DiffView view = diffView(id, version);
-        if (!"OK".equals(view.state())) {
+        DiffResolution resolution = resolveDiff(id, version);
+        if (!"OK".equals(resolution.state())) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
+        // Export the FULL diff (not the page's 100-row preview cap): same source/version resolution as the page.
+        SiteDiffEngine.SiteDiff diff = resolution.diff();
         StringBuilder csv = new StringBuilder("\uFEFF");
         Csv.row(csv, "type", "url");
-        view.added().forEach(url -> Csv.row(csv, "added", url));
-        view.removed().forEach(url -> Csv.row(csv, "removed", url));
-        view.changed().forEach(url -> Csv.row(csv, "changed", url));
+        diff.added().forEach(url -> Csv.row(csv, "added", url));
+        diff.removed().forEach(url -> Csv.row(csv, "removed", url));
+        diff.changed().forEach(url -> Csv.row(csv, "changed", url));
         byte[] body = csv.toString().getBytes(StandardCharsets.UTF_8);
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(new MediaType("text", "csv", StandardCharsets.UTF_8));
@@ -209,23 +211,37 @@ public class AutoSiteController {
     }
 
     /**
-     * 明细按需实时算：v1=FIRST；上一版已被裁剪/XML 缺失/解析异常=UNAVAILABLE；否则 OK（每组截断 100）
+     * diff 明细统一实时算：v1=FIRST；上一版已被裁剪/XML 缺失/解析异常=UNAVAILABLE；否则 OK（携带全量 SiteDiff）。
+     * 页面据此截断预览 100 条，CSV 导出全量——「无法比较」两处语义一致（页面占位 / CSV 404）。
      */
-    private DiffView diffView(Long siteId, AutoSiteVersion version) {
+    private DiffResolution resolveDiff(Long siteId, AutoSiteVersion version) {
         if (version.getVersionNumber() == 1) {
-            return DiffView.of("FIRST", null);
+            return new DiffResolution("FIRST", null);
         }
         AutoSiteVersion previous = autoSiteService.version(siteId, version.getVersionNumber() - 1)
                 .orElse(null);
         if (previous == null) {
-            return DiffView.of("UNAVAILABLE", null);
+            return new DiffResolution("UNAVAILABLE", null);
         }
         try {
-            return DiffView.of("OK", SiteDiffEngine.diff(previous.getSitemapXml(), version.getSitemapXml()));
+            return new DiffResolution("OK",
+                    SiteDiffEngine.diff(previous.getSitemapXml(), version.getSitemapXml()));
         } catch (Exception e) {
             log.warn("版本 diff 实时计算失败：siteId={}, v={}, {}", siteId, version.getVersionNumber(), e.getMessage());
-            return DiffView.of("UNAVAILABLE", null);
+            return new DiffResolution("UNAVAILABLE", null);
         }
+    }
+
+    /** resolveDiff 结果：state ∈ {FIRST, UNAVAILABLE, OK}，diff 仅 OK 时非空（全量，未截断） */
+    private record DiffResolution(String state, SiteDiffEngine.SiteDiff diff) {
+    }
+
+    /**
+     * 详情页预览模型：由 resolveDiff 的全量 diff 每组截断至 PREVIEW_LIMIT；明细按需实时算
+     */
+    private DiffView diffView(Long siteId, AutoSiteVersion version) {
+        DiffResolution resolution = resolveDiff(siteId, version);
+        return DiffView.of(resolution.state(), resolution.diff());
     }
 
     // 模板 SpEL 需反射调用 overflow()：record 与方法必须 public，包私有会抛 IllegalAccessException
@@ -246,8 +262,10 @@ public class AutoSiteController {
         }
 
         public int overflow() {
-            return Math.max(Math.max(addedCount - PREVIEW_LIMIT, removedCount - PREVIEW_LIMIT),
-                    changedCount - PREVIEW_LIMIT);
+            // 三组各自溢出求和：任一组超限时「另有 N 条未显示」都足量报告，取 max 会少报
+            return Math.max(0, addedCount - PREVIEW_LIMIT)
+                    + Math.max(0, removedCount - PREVIEW_LIMIT)
+                    + Math.max(0, changedCount - PREVIEW_LIMIT);
         }
     }
 

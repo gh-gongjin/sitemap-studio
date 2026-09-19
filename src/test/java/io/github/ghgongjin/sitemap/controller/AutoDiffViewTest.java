@@ -89,6 +89,38 @@ class AutoDiffViewTest {
         return site.getId();
     }
 
+    /** 播种一对 150 新增 / 120 删除 / 0 改动 的版本：用于验证「页面每组截断 100 + 溢出求和 + CSV 全量」 */
+    private Long seedLimitTwoVersions() {
+        io.github.ghgongjin.sitemap.entity.AutoSite site =
+                autoSiteService.create(ownerId, "https://diff-limit.example.invalid", false, false, false, 24);
+        String base = "https://diff-limit.example.invalid/";
+        StringBuilder v1 = new StringBuilder("<urlset>");
+        for (int i = 0; i < 120; i++) {
+            v1.append(urlEntry(base + "removed-" + pad3(i)));
+        }
+        for (int i = 0; i < 10; i++) {
+            v1.append(urlEntry(base + "shared-" + pad3(i)));
+        }
+        StringBuilder v2 = new StringBuilder("<urlset>");
+        for (int i = 0; i < 150; i++) {
+            v2.append(urlEntry(base + "added-" + pad3(i)));
+        }
+        for (int i = 0; i < 10; i++) {
+            v2.append(urlEntry(base + "shared-" + pad3(i)));
+        }
+        autoSiteService.recordSuccess(site.getId(), "t1", v1.append("</urlset>").toString(), 130);
+        autoSiteService.recordSuccess(site.getId(), "t2", v2.append("</urlset>").toString(), 160);
+        return site.getId();
+    }
+
+    private static String urlEntry(String loc) {
+        return "<url><loc>" + loc + "</loc><lastmod>2026-01-01</lastmod></url>";
+    }
+
+    private static String pad3(int i) {
+        return String.format("%03d", i);
+    }
+
     @Test
     void shouldRenderDiffPageWithThreeGroupsForSecondVersion() throws Exception {
         Long id = seedTwoVersions();
@@ -149,6 +181,33 @@ class AutoDiffViewTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("+2 −1 ~1")))
                 .andExpect(content().string(containsString("首个快照")));
+    }
+
+    @Test
+    void shouldExportFullCsvAndSumOverflowWhenGroupsExceedPreviewLimit() throws Exception {
+        // Given 150 新增 / 120 删除 / 0 改动 的版本对
+        Long id = seedLimitTwoVersions();
+
+        // When 渲染详情页
+        String html = mvc.perform(get("/auto/{id}/versions/2/diff", id).with(user(ownerDetails)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        // Then 计数徽标取全量；每组明细截断至 100 条；溢出提示取三组之和 (150-100)+(120-100)+0=70
+        assertThat(html).contains("+150").contains("−120");
+        assertThat(html).contains("/added-099").doesNotContain("/added-100");
+        assertThat(html).contains("/removed-099").doesNotContain("/removed-100");
+        assertThat(html).contains("另有 70 条未显示");
+
+        // When 下载完整 diff CSV
+        String csv = mvc.perform(get("/auto/{id}/versions/2/diff.csv", id).with(user(ownerDetails)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        // Then CSV 不受 100 截断，270 条数据行全量导出（另含 BOM + 表头）
+        assertThat(csv).startsWith("\uFEFF").contains("\"type\",\"url\"");
+        assertThat(csv.lines().filter(l -> l.startsWith("\"added\"")).count()).isEqualTo(150);
+        assertThat(csv.lines().filter(l -> l.startsWith("\"removed\"")).count()).isEqualTo(120);
     }
 
     /** 放行任意主机的抓取策略桩，仅用于建站校验，避免测试依赖 DNS */
