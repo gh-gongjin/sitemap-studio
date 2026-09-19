@@ -1,0 +1,10 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+  <h3 th:text="'站点更新失败 / Site update failed'"></h3>
+  <p><b th:text="${p.siteUrl}">https://example.com</b></p>
+  <p th:text="'连续失败 Consecutive failures: ' + ${p.consecutiveFailures}"></p>
+  <p th:text="'原因 Reason: ' + ${p.failureMessage}"></p>
+  <p style="color:#888;font-size:12px" th:text="'Sitemap Studio · ' + ${p.occurredAt}"></p>
+</body>
+</html>

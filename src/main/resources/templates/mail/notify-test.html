@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+  <h3 th:text="'测试通知 / Test notification'"></h3>
+  <p><b th:text="${p.siteUrl}">https://example.com</b></p>
+  <p th:text="'这是一条测试通知 / This is a test notification'"></p>
+  <p style="color:#888;font-size:12px" th:text="'Sitemap Studio · ' + ${p.occurredAt}"></p>
+</body>
+</html>
