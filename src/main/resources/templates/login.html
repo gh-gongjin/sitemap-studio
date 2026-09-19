@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.login}">Sitemap Studio · 登录</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='', langZh=@{/login(lang='zh-CN')}, langEn=@{/login(lang='en')})}"></header>
+
+<main class="rise">
+  <section class="auth-card panel">
+    <h2 th:text="#{auth.login.title}">登录 Sitemap Studio</h2>
+    <p class="form-ok" th:if="${param.registered}" th:text="#{auth.registered}">注册成功，请登录</p>
+    <p class="form-error" th:if="${param.error}" th:text="#{auth.error.credentials}">用户名或密码错误</p>
+    <form method="post" th:action="@{/login}">
+      <div class="field">
+        <label class="field-label" for="username" th:text="#{auth.username}">用户名</label>
+        <input id="username" name="username" type="text" autocomplete="username">
+      </div>
+      <div class="field">
+        <label class="field-label" for="password" th:text="#{auth.password}">密码</label>
+        <input id="password" name="password" type="password" autocomplete="current-password">
+      </div>
+      <button class="btn primary auth-submit" type="submit" th:text="#{auth.submit.login}">登录</button>
+    </form>
+    <p class="auth-alt">
+      <a class="link" th:href="@{/register(lang=${#locale.language == 'zh'} ? 'zh-CN' : 'en')}"
+         th:text="#{auth.toRegister}">还没有账号？注册</a>
+    </p>
+  </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+</body>
+</html>

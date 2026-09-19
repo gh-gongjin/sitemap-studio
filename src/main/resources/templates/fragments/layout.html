@@ -32,6 +32,16 @@
         <a th:href="@{/help}" th:classappend="${active == 'help'} ? 'active'" th:text="#{nav.help}">帮助</a>
         <a th:href="@{/about}" th:classappend="${active == 'about'} ? 'active'" th:text="#{nav.about}">关于</a>
       </nav>
+      <div class="auth-zone" th:if="${#strings.isEmpty(currentUsername)}">
+        <a class="link" th:href="@{/login}" th:text="#{nav.login}">登录</a>
+        <a class="link" th:href="@{/register}" th:text="#{nav.register}">注册</a>
+      </div>
+      <div class="auth-zone" th:unless="${#strings.isEmpty(currentUsername)}">
+        <span class="mono" th:text="${currentUsername}">alice</span>
+        <form method="post" th:action="@{/logout}" class="inline-form">
+          <button type="submit" class="link-btn" th:text="#{nav.logout}">退出</button>
+        </form>
+      </div>
       <div class="seg" role="group" aria-label="Language">
         <a th:href="${langZh}" th:classappend="${#locale.language == 'zh'} ? 'on'" th:text="#{lang.zh}">中文</a>
         <a th:href="${langEn}" th:classappend="${#locale.language != 'zh'} ? 'on'" th:text="#{lang.en}">EN</a>

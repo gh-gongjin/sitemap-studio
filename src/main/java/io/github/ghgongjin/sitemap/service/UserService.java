@@ -2,10 +2,10 @@ package io.github.ghgongjin.sitemap.service;
 
 import io.github.ghgongjin.sitemap.entity.UserAccount;
 import io.github.ghgongjin.sitemap.repository.UserAccountRepository;
+import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -74,9 +74,7 @@ public class UserService implements UserDetailsService {
         UserAccount account = userAccountRepository.findByUsername(
                         username == null ? "" : username.trim().toLowerCase(Locale.ROOT))
                 .orElseThrow(() -> new UsernameNotFoundException("用户不存在"));
-        return User.withUsername(account.getUsername())
-                .password(account.getPasswordHash())
-                .roles("USER")
-                .build();
+        // 返回携带用户 id 的自定义 UserDetails，供 SecurityUtils 与后续业务隔离使用
+        return new UserAccountDetails(account.getId(), account.getUsername(), account.getPasswordHash());
     }
 }

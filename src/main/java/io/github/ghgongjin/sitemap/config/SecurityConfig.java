@@ -11,7 +11,8 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * @ClassName SecurityConfig
  * @Description Spring Security 配置：提供 BCrypt（DelegatingPasswordEncoder）bean 与过滤链。
- *              Task 1 过渡态为全站放行 + 关闭 CSRF，Task 2 起改为真正的授权矩阵
+ *              Task 2 启用表单登录/退出并恢复 CSRF 保护（/ws-progress/** 为 SockJS 协商流量豁免），
+ *              授权矩阵仍整体放行，业务门禁由 Task 3/4 收紧
  * @Author gj
  * @Date 2026/9/19
  * @Version 1.0
@@ -27,9 +28,22 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        // Task 1 过渡态：全站放行且关闭 CSRF，Task 2 起改回真正的授权矩阵
-        http.csrf(csrf -> csrf.disable())
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        http.authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/login", "/register", "/css/**", "/js/**",
+                                "/fonts/**", "/favicon.ico", "/error").permitAll()
+                        .anyRequest().permitAll())   // Task 3/4 收紧为报告与自动更新门禁
+                .formLogin(form -> form
+                        .loginPage("/login")
+                        .failureUrl("/login?error=1")
+                        .permitAll())
+                .logout(logout -> logout
+                        .logoutUrl("/logout")
+                        .logoutSuccessUrl("/")
+                        .invalidateHttpSession(true)
+                        .deleteCookies("JSESSIONID"))
+                // /ws-progress/** 为 SockJS 协商流量（xhr_send 等 POST），无表单，豁免 CSRF；
+                // 其余路径恢复默认 CSRF 保护
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/ws-progress/**"));
         return http.build();
     }
 }

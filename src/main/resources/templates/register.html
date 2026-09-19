@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.register}">Sitemap Studio · 注册</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='', langZh=@{/register(lang='zh-CN')}, langEn=@{/register(lang='en')})}"></header>
+
+<main class="rise">
+  <section class="auth-card panel">
+    <h2 th:text="#{auth.register.title}">创建账号</h2>
+    <p class="form-error" th:if="${errorKey}" th:text="#{${errorKey}}">用户名格式不正确</p>
+    <form method="post" th:action="@{/register}">
+      <div class="field">
+        <label class="field-label" for="username" th:text="#{auth.username}">用户名</label>
+        <input id="username" name="username" type="text" autocomplete="username" th:value="${username}">
+        <small class="field-hint" th:text="#{auth.hint.username}">3–20 位字母、数字或下划线</small>
+      </div>
+      <div class="field">
+        <label class="field-label" for="password" th:text="#{auth.password}">密码</label>
+        <input id="password" name="password" type="password" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label class="field-label" for="confirmPassword" th:text="#{auth.confirm}">确认密码</label>
+        <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password">
+        <small class="field-hint" th:text="#{auth.hint.password}">至少 8 位，须含字母和数字</small>
+      </div>
+      <button class="btn primary auth-submit" type="submit" th:text="#{auth.submit.register}">创建账号</button>
+    </form>
+    <p class="auth-alt">
+      <a class="link" th:href="@{/login(lang=${#locale.language == 'zh'} ? 'zh-CN' : 'en')}"
+         th:text="#{auth.toLogin}">已有账号？登录</a>
+    </p>
+  </section>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+</body>
+</html>
