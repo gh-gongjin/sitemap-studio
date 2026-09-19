@@ -1,10 +1,14 @@
 package io.github.ghgongjin.sitemap.service;
 
 import io.github.ghgongjin.sitemap.entity.AutoSite;
+import io.github.ghgongjin.sitemap.entity.SeoReport;
+import io.github.ghgongjin.sitemap.service.notify.SiteFailedEvent;
+import io.github.ghgongjin.sitemap.service.notify.SiteUpdatedEvent;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.SitemapPushService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -26,6 +30,7 @@ public class AutoSiteUpdater {
     private final CrawlProgressService progressService;
     private final SeoReportService seoReportService;
     private final SitemapPushService sitemapPushService;
+    private final ApplicationEventPublisher events;
 
     /**
      * 同步执行一次站点更新（由调度器单线程串行调用）
@@ -37,12 +42,15 @@ public class AutoSiteUpdater {
             String sitemapXml = enhancedSitemapGeneratorService.generateSitemapWithProgress(
                     site.getUrl(), site.isIncludeImages(), site.isIncludeVideos(), site.isIncludeNews(), taskId);
             autoSiteService.recordSuccess(site.getId(), taskId, sitemapXml, resolveUrlCount(taskId));
-            saveSeoReport(taskId, site.getUrl(), site.getUserId());
+            SeoReport report = saveSeoReport(taskId, site.getUrl(), site.getUserId());
+            publishUpdatedEvent(site, report);
             pushLatestVersion(site);
             return true;
         } catch (Exception e) {
             log.error("自动更新失败：{}，原因：{}", site.getUrl(), e.getMessage());
-            autoSiteService.recordFailure(site.getId(), e.getMessage());
+            AutoSite failed = autoSiteService.recordFailure(site.getId(), e.getMessage());
+            publishEvent(new SiteFailedEvent(site.getId(),
+                    failed.consecutiveFailuresOrZero(), failed.getLastMessage()));
             return false;
         }
     }
@@ -66,13 +74,35 @@ public class AutoSiteUpdater {
         return result == null ? 0 : result.getTotalPages();
     }
 
-    private void saveSeoReport(String taskId, String url, Long userId) {
+    private SeoReport saveSeoReport(String taskId, String url, Long userId) {
         try {
             // 调度线程没有请求上下文，报告按站点归属用户落库；
             // 存量无归属站点（userId 为空）的报告保持无归属，对任何登录用户不可见
-            seoReportService.save(taskId, url, userId);
+            return seoReportService.save(taskId, url, userId);
         } catch (Exception e) {
             log.warn("自动更新 SEO 报告保存失败：taskId={}, {}", taskId, e.getMessage());
+            return null;
+        }
+    }
+
+    private void publishUpdatedEvent(AutoSite site, SeoReport report) {
+        try {
+            autoSiteService.latestVersion(site.getId()).ifPresent(version -> publishEvent(
+                    new SiteUpdatedEvent(site.getId(), version.getId(), version.getVersionNumber(),
+                            version.getDiffAdded(), version.getDiffRemoved(), version.getDiffChanged(),
+                            report == null ? null : report.getErrorCount(),
+                            version.getVersionNumber() == 1)));
+        } catch (Exception e) {
+            log.warn("站点更新事件发布失败：siteId={}，{}", site.getId(), e.getMessage());
+        }
+    }
+
+    /** 事件发布异常绝不影响更新结果（监听器异步，此处仅防御发布环节本身） */
+    private void publishEvent(Object event) {
+        try {
+            events.publishEvent(event);
+        } catch (Exception e) {
+            log.warn("通知事件发布异常：{}", e.getMessage());
         }
     }
 
