@@ -3,6 +3,7 @@ package io.github.ghgongjin.sitemap.controller;
 import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.entity.PushLog;
+import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushConfigView;
@@ -13,10 +14,15 @@ import io.github.ghgongjin.sitemap.service.push.SitemapPushService;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -41,6 +47,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -53,7 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * @ClassName AutoSiteControllerTest
- * @Description 自动更新管理页与接口测试（真实模板渲染 + 表单流转）
+ * @Description 自动更新管理页与接口测试（真实模板渲染 + 表单流转 + 归属用户作用域）
  * @Author gj
  * @Date 2026/9/18
  * @Version 1.0
@@ -62,6 +69,7 @@ class AutoSiteControllerTest {
 
     private static final String SITE = "https://example.com";
     private static final String XML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset/>";
+    private static final Long USER_ID = 7L;
 
     private AutoSiteService autoSiteService;
     private PushConfigService pushConfigService;
@@ -70,6 +78,10 @@ class AutoSiteControllerTest {
 
     @BeforeEach
     void setUp() {
+        // 控制器在请求线程读取归属用户，standalone 场景需手工装配登录态
+        UserAccountDetails details = new UserAccountDetails(USER_ID, "tester", "");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                details, "", details.getAuthorities()));
         autoSiteService = mock(AutoSiteService.class);
         pushConfigService = mock(PushConfigService.class);
         sitemapPushService = mock(SitemapPushService.class);
@@ -97,10 +109,15 @@ class AutoSiteControllerTest {
                 .setViewResolvers(views, new InternalResourceViewResolver("/", ".html")).build();
     }
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void shouldRenderSiteRowsWithStatusAndVersionWhenListHasSites() throws Exception {
         // Given
-        when(autoSiteService.list()).thenReturn(List.of(site(true, "SUCCESS")));
+        when(autoSiteService.listOwned(USER_ID)).thenReturn(List.of(site(true, "SUCCESS")));
         when(autoSiteService.latestVersion(1L)).thenReturn(Optional.of(version(3, 42)));
 
         // When
@@ -119,7 +136,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldRenderEmptyStateWhenNoSites() throws Exception {
         // Given
-        when(autoSiteService.list()).thenReturn(List.of());
+        when(autoSiteService.listOwned(USER_ID)).thenReturn(List.of());
 
         // When
         Document page = render(get("/auto"));
@@ -132,7 +149,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldRedirectWithFlashWhenCreateSucceeds() throws Exception {
         // Given
-        when(autoSiteService.create(anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
+        when(autoSiteService.create(eq(USER_ID), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
                 .thenReturn(site(true, "PENDING"));
 
         // When & Then
@@ -148,9 +165,9 @@ class AutoSiteControllerTest {
     @Test
     void shouldShowSuccessFlashWhenFollowingRedirect() throws Exception {
         // Given
-        when(autoSiteService.create(anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
+        when(autoSiteService.create(eq(USER_ID), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
                 .thenReturn(site(true, "PENDING"));
-        when(autoSiteService.list()).thenReturn(List.of());
+        when(autoSiteService.listOwned(USER_ID)).thenReturn(List.of());
         MockHttpSession session = new MockHttpSession();
 
         // When
@@ -164,7 +181,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldFlashErrorWhenCreateRejected() throws Exception {
         // Given
-        when(autoSiteService.create(anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
+        when(autoSiteService.create(eq(USER_ID), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
                 .thenThrow(new IllegalArgumentException("该网站已在自动更新列表中：" + SITE));
 
         // When & Then
@@ -176,45 +193,80 @@ class AutoSiteControllerTest {
 
     @Test
     void shouldRunNowAndRedirect() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+
         // When & Then
         mvc.perform(post("/auto/1/run"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/auto"))
                 .andExpect(flash().attribute("flash", "auto.flash.run"));
-        verify(autoSiteService).runNow(1L);
+        verify(autoSiteService).runNow(1L, USER_ID);
     }
 
     @Test
     void shouldDisableSiteWhenTogglingEnabledSite() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
 
         // When & Then
         mvc.perform(post("/auto/1/toggle"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("flash", "auto.flash.disabled"));
-        verify(autoSiteService).setEnabled(1L, false);
+        verify(autoSiteService).setEnabled(1L, false, USER_ID);
     }
 
     @Test
     void shouldEnableSiteWhenTogglingDisabledSite() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(false, "FAILED")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(false, "FAILED")));
 
         // When & Then
         mvc.perform(post("/auto/1/toggle"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("flash", "auto.flash.enabled"));
-        verify(autoSiteService).setEnabled(1L, true);
+        verify(autoSiteService).setEnabled(1L, true, USER_ID);
     }
 
     @Test
     void shouldDeleteAndRedirect() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+
         // When & Then
         mvc.perform(post("/auto/1/delete"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("flash", "auto.flash.deleted"));
-        verify(autoSiteService).delete(1L);
+        verify(autoSiteService).delete(1L, USER_ID);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/auto/1/run", "/auto/1/toggle", "/auto/1/delete",
+            "/auto/1/push/test", "/auto/1/push/run"})
+    void shouldReturn404AndSkipWriteWhenSiteNotOwned(String path) throws Exception {
+        // Given: 站点不存在或属于他人，findOwned 一律 empty
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.empty());
+
+        // When & Then: 越权写操作 404，不触发任何业务写入（也不落到 flash 内联提示）
+        mvc.perform(post(path)).andExpect(status().isNotFound());
+        verify(autoSiteService, never()).runNow(any(), any());
+        verify(autoSiteService, never()).setEnabled(any(), anyBoolean(), any());
+        verify(autoSiteService, never()).delete(any(), any());
+        verifyNoInteractions(pushConfigService);
+        verifyNoInteractions(sitemapPushService);
+    }
+
+    @Test
+    void shouldReturn404AndSkipSaveWhenPushSettingsTargetForeignSite() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.empty());
+
+        // When & Then
+        mvc.perform(post("/auto/1/push/settings")
+                        .param("protocol", "SFTP").param("host", "sftp.example.com")
+                        .param("port", "22").param("username", "deployer"))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(pushConfigService);
     }
 
     @Test
@@ -223,7 +275,7 @@ class AutoSiteControllerTest {
         AutoSite site = site(true, "SUCCESS");
         site.setLastRunAt(LocalDateTime.of(2026, 9, 18, 10, 0));
         site.setNextRunAt(LocalDateTime.of(2026, 9, 19, 10, 0));
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site));
         when(autoSiteService.versions(1L)).thenReturn(List.of(version(3, 42), version(2, 40)));
 
         // When
@@ -244,7 +296,7 @@ class AutoSiteControllerTest {
         // Given
         AutoSite site = site(true, "FAILED");
         site.setLastMessage("拒绝包含内网地址的主机");
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
 
         // When
@@ -258,7 +310,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldReturn404WhenSiteMissing() throws Exception {
         // Given
-        when(autoSiteService.find(9L)).thenReturn(Optional.empty());
+        when(autoSiteService.findOwned(9L, USER_ID)).thenReturn(Optional.empty());
 
         // Then
         mvc.perform(get("/auto/9")).andExpect(status().isNotFound());
@@ -268,7 +320,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldDownloadLatestVersionWhenNoVersionParam() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.latestVersion(1L)).thenReturn(Optional.of(version(3, 42)));
 
         // When & Then
@@ -282,7 +334,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldDownloadGivenVersionWhenVersionParam() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.version(1L, 2)).thenReturn(Optional.of(version(2, 40)));
 
         // When & Then
@@ -295,7 +347,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldReturn404WhenVersionMissing() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.version(1L, 99)).thenReturn(Optional.empty());
 
         // Then
@@ -305,7 +357,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldUseCustomConfirmDialogWhenDeleteFormRendered() throws Exception {
         // Given
-        when(autoSiteService.list()).thenReturn(List.of(site(true, "SUCCESS")));
+        when(autoSiteService.listOwned(USER_ID)).thenReturn(List.of(site(true, "SUCCESS")));
 
         // When
         Document page = render(get("/auto"));
@@ -319,7 +371,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldUseCustomIntervalSelectAndInlineValidationWhenFormRendered() throws Exception {
         // Given
-        when(autoSiteService.list()).thenReturn(List.of());
+        when(autoSiteService.listOwned(USER_ID)).thenReturn(List.of());
 
         // When
         Document page = render(get("/auto"));
@@ -338,7 +390,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldSavePushSettingsAndRedirectToDetail() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
 
         // When & Then
         mvc.perform(post("/auto/1/push/settings")
@@ -360,7 +412,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldFlashErrorWhenPushSettingsRejected() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(pushConfigService.save(eq(1L), any(PushSettings.class)))
                 .thenThrow(new IllegalArgumentException("端口必须在 1 到 65535 之间"));
 
@@ -377,7 +429,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldFlashOkWhenConnectionTestSucceeds() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(sitemapPushService.testConnection(1L)).thenReturn(PushOutcome.success("连接成功", 5));
 
         // When & Then
@@ -390,7 +442,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldFlashErrorWhenConnectionTestFails() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(sitemapPushService.testConnection(1L)).thenReturn(
                 PushOutcome.failure(PushErrorCode.AUTH_FAILED, "认证失败（用户名或密码错误）", null, 3));
 
@@ -402,7 +454,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldFlashOkWhenManualPushSucceeds() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(sitemapPushService.push(1L))
                 .thenReturn(PushOutcome.success(3, "已上传 sitemap.xml（版本 3）", 42));
 
@@ -416,7 +468,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldFlashErrorWithReasonWhenManualPushSkipped() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(sitemapPushService.push(1L)).thenReturn(PushOutcome.skipped("尚未配置推送"));
 
         // When & Then
@@ -428,7 +480,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldExposePushConfigAndLogsWhenRenderingDetail() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
         PushConfigView view = new PushConfigView(true, "SFTP", "sftp.example.com", 22, "deployer",
                 "PASSWORD", "/var/www", "sitemap.xml", "SHA256:abc", true, "a".repeat(32),
@@ -446,7 +498,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldRenderPushDefaultsWhenNoConfigSaved() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
 
         // When
@@ -476,7 +528,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldFillPushFormFromSavedConfig() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
         PushConfigView view = new PushConfigView(true, "SFTP", "sftp.example.com", 2222, "deployer",
                 "PRIVATE_KEY", "/var/www/html", "sitemap-news.xml", "SHA256:abc123", true, "a".repeat(32),
@@ -505,7 +557,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldNotExposeStoredCredentialsWhenRenderingPushForm() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
         PushConfigView view = new PushConfigView(true, "SFTP", "sftp.example.com", 22, "deployer",
                 "PASSWORD", "", "sitemap.xml", null, false, null, true, true, null, null, null);
@@ -527,7 +579,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldUseSystemControlsInPushForm() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
 
         // When
@@ -550,7 +602,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldRenderPushLogsWhenLogsExist() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
         PushLog ok = pushLog("SUCCESS", null, "已上传 sitemap.xml（版本 3）", "SUCCESS", 128);
         ok.setVersionNumber(3);
@@ -582,7 +634,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldRenderPushFlashWhenFollowingRedirect() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
         when(sitemapPushService.push(1L))
                 .thenReturn(PushOutcome.success(3, "已上传 sitemap.xml（版本 3）", 42));
@@ -599,7 +651,7 @@ class AutoSiteControllerTest {
     @Test
     void shouldRenderPushErrorFlashWhenFollowingRedirect() throws Exception {
         // Given
-        when(autoSiteService.find(1L)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
         when(sitemapPushService.push(1L))
                 .thenReturn(PushOutcome.failure(PushErrorCode.UPLOAD_FAILED, "连接超时", 3, 4200));
@@ -622,6 +674,7 @@ class AutoSiteControllerTest {
     private AutoSite site(boolean enabled, String lastStatus) {
         AutoSite site = new AutoSite();
         site.setId(1L);
+        site.setUserId(USER_ID);
         site.setUrl(SITE);
         site.setIncludeImages(true);
         site.setIncludeVideos(false);

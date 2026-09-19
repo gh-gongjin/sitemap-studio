@@ -2,6 +2,7 @@ package io.github.ghgongjin.sitemap.controller;
 
 import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
+import io.github.ghgongjin.sitemap.security.SecurityUtils;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
@@ -28,7 +29,8 @@ import java.util.List;
 
 /**
  * @ClassName AutoSiteController
- * @Description 自动更新管理页（注册站点、启停、立即执行、版本下载、推送设置与执行）
+ * @Description 自动更新管理页（注册站点、启停、立即执行、版本下载、推送设置与执行），
+ *              全部端点以当前登录用户为作用域，他人站点一律 404
  * @Author gj
  * @Date 2026/9/18
  * @Version 1.0
@@ -47,7 +49,8 @@ public class AutoSiteController {
 
     @GetMapping
     public String list(Model model) {
-        List<SiteRow> rows = autoSiteService.list().stream()
+        Long userId = SecurityUtils.currentUserId();
+        List<SiteRow> rows = autoSiteService.listOwned(userId).stream()
                 .map(site -> new SiteRow(site, autoSiteService.latestVersion(site.getId()).orElse(null)))
                 .toList();
         model.addAttribute("rows", rows);
@@ -61,9 +64,11 @@ public class AutoSiteController {
                          @RequestParam(value = "includeNews", defaultValue = "false") boolean includeNews,
                          @RequestParam(value = "intervalHours", defaultValue = "24") int intervalHours,
                          RedirectAttributes redirect) {
+        Long userId = SecurityUtils.currentUserId();
         try {
-            AutoSite site = autoSiteService.create(url, includeImages, includeVideos, includeNews, intervalHours);
-            log.info("自动更新站点已添加：{}", site.getUrl());
+            AutoSite site = autoSiteService.create(
+                    userId, url, includeImages, includeVideos, includeNews, intervalHours);
+            log.info("自动更新站点已添加：{}（用户 {}）", site.getUrl(), userId);
             redirect.addFlashAttribute("flash", "auto.flash.added");
         } catch (IllegalArgumentException | SecurityException e) {
             redirect.addFlashAttribute("flashError", e.getMessage());
@@ -73,21 +78,26 @@ public class AutoSiteController {
 
     @PostMapping("/{id}/run")
     public String runNow(@PathVariable Long id, RedirectAttributes redirect) {
-        return mutate(redirect, "auto.flash.run", LIST_PATH, () -> autoSiteService.runNow(id));
+        Long userId = SecurityUtils.currentUserId();
+        requireOwned(id, userId);
+        return mutate(redirect, "auto.flash.run", LIST_PATH, () -> autoSiteService.runNow(id, userId));
     }
 
     @PostMapping("/{id}/toggle")
     public String toggle(@PathVariable Long id, RedirectAttributes redirect) {
-        AutoSite site = requireSite(id);
+        Long userId = SecurityUtils.currentUserId();
+        AutoSite site = requireOwned(id, userId);
         boolean target = !site.isEnabled();
         return mutate(redirect, target ? "auto.flash.enabled" : "auto.flash.disabled", LIST_PATH,
-                () -> autoSiteService.setEnabled(id, target));
+                () -> autoSiteService.setEnabled(id, target, userId));
     }
 
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
+        Long userId = SecurityUtils.currentUserId();
+        requireOwned(id, userId);
         return mutate(redirect, "auto.flash.deleted", LIST_PATH, () -> {
-            autoSiteService.delete(id);
+            autoSiteService.delete(id, userId);
             pushConfigService.delete(id);
         });
     }
@@ -109,7 +119,7 @@ public class AutoSiteController {
                                    boolean indexNowEnabled,
                                    @RequestParam(value = "indexNowKey", defaultValue = "") String indexNowKey,
                                    RedirectAttributes redirect) {
-        requireSite(id);
+        requireOwned(id, SecurityUtils.currentUserId());
         PushSettings settings = new PushSettings(enabled, protocol, host, port, username, authType,
                 password, privateKey, remoteDir, sitemapFileName, indexNowEnabled, indexNowKey);
         return mutate(redirect, "auto.push.flash.saved", detailPath(id),
@@ -118,21 +128,22 @@ public class AutoSiteController {
 
     @PostMapping("/{id}/push/test")
     public String testPush(@PathVariable Long id, RedirectAttributes redirect) {
-        requireSite(id);
+        requireOwned(id, SecurityUtils.currentUserId());
         return flashOutcome(redirect, id, "auto.push.flash.testOk",
                 () -> sitemapPushService.testConnection(id));
     }
 
     @PostMapping("/{id}/push/run")
     public String runPush(@PathVariable Long id, RedirectAttributes redirect) {
-        requireSite(id);
+        requireOwned(id, SecurityUtils.currentUserId());
         return flashOutcome(redirect, id, "auto.push.flash.pushed",
                 () -> sitemapPushService.push(id));
     }
 
     @GetMapping("/{id}")
     public String detail(@PathVariable Long id, Model model) {
-        AutoSite site = requireSite(id);
+        Long userId = SecurityUtils.currentUserId();
+        AutoSite site = requireOwned(id, userId);
         model.addAttribute("site", site);
         model.addAttribute("versions", autoSiteService.versions(id));
         model.addAttribute("pushConfig", pushConfigService.view(id).orElse(null));
@@ -143,7 +154,7 @@ public class AutoSiteController {
     @GetMapping("/{id}/download")
     public ResponseEntity<byte[]> download(@PathVariable Long id,
                                            @RequestParam(value = "version", required = false) Integer version) {
-        requireSite(id);
+        requireOwned(id, SecurityUtils.currentUserId());
         AutoSiteVersion target = version == null
                 ? autoSiteService.latestVersion(id).orElse(null)
                 : autoSiteService.version(id, version).orElse(null);
@@ -186,8 +197,11 @@ public class AutoSiteController {
         return "/auto/" + id;
     }
 
-    private AutoSite requireSite(Long id) {
-        return autoSiteService.find(id)
+    /**
+     * 读路径与写操作入口的归属校验：不存在与不属于当前用户统一按 404 透出
+     */
+    private AutoSite requireOwned(Long id, Long userId) {
+        return autoSiteService.findOwned(id, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 

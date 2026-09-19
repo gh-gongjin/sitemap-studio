@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -31,6 +32,7 @@ class AutoSiteUpdaterTest {
 
     private static final String SITE = "https://example.com";
     private static final String XML = "<urlset></urlset>";
+    private static final Long OWNER = 42L;
 
     private AutoSiteService autoSiteService;
     private EnhancedSitemapGeneratorService enhancedService;
@@ -68,7 +70,7 @@ class AutoSiteUpdaterTest {
     }
 
     @Test
-    void shouldPersistSeoReportWithSameTaskWhenUpdateSucceeds() {
+    void shouldPersistSeoReportOwnedBySiteOwnerWhenUpdateSucceeds() {
         // Given
         AutoSite site = site(1L);
         when(enhancedService.generateSitemapWithProgress(anyString(), anyBoolean(), anyBoolean(), anyBoolean(),
@@ -78,10 +80,26 @@ class AutoSiteUpdaterTest {
         // When
         updater.update(site);
 
-        // Then
+        // Then: 调度线程没有请求上下文，报告按站点归属用户落库
         ArgumentCaptor<String> taskId = ArgumentCaptor.forClass(String.class);
         verify(autoSiteService).recordSuccess(eq(1L), taskId.capture(), anyString(), anyInt());
-        verify(seoReportService).save(eq(taskId.getValue()), eq(SITE), isNull());
+        verify(seoReportService).save(eq(taskId.getValue()), eq(SITE), eq(OWNER));
+    }
+
+    @Test
+    void shouldPersistReportWithoutOwnerWhenLegacySiteHasNoOwner() {
+        // Given: 升级前的存量站点，user_id 为空
+        AutoSite site = site(1L);
+        site.setUserId(null);
+        when(enhancedService.generateSitemapWithProgress(anyString(), anyBoolean(), anyBoolean(), anyBoolean(),
+                anyString())).thenReturn(XML);
+        when(progressService.getTaskResult(anyString())).thenReturn(result(3));
+
+        // When
+        updater.update(site);
+
+        // Then: 报告保持无归属，不会错绑到任何用户
+        verify(seoReportService).save(anyString(), eq(SITE), isNull());
     }
 
     @Test
@@ -107,7 +125,7 @@ class AutoSiteUpdaterTest {
         when(enhancedService.generateSitemapWithProgress(anyString(), anyBoolean(), anyBoolean(), anyBoolean(),
                 anyString())).thenReturn(XML);
         when(progressService.getTaskResult(anyString())).thenReturn(result(5));
-        doThrow(new RuntimeException("db down")).when(seoReportService).save(anyString(), anyString(), isNull());
+        doThrow(new RuntimeException("db down")).when(seoReportService).save(anyString(), anyString(), any());
 
         // When
         boolean updated = updater.update(site);
@@ -183,6 +201,7 @@ class AutoSiteUpdaterTest {
     private AutoSite site(Long id) {
         AutoSite site = new AutoSite();
         site.setId(id);
+        site.setUserId(OWNER);
         site.setUrl(SITE);
         site.setIncludeImages(true);
         site.setIncludeVideos(false);

@@ -17,7 +17,7 @@ import java.util.Optional;
 
 /**
  * @ClassName AutoSiteService
- * @Description 自动更新站点的存储层：注册/启停/到期扫描/版本记录
+ * @Description 自动更新站点的存储层：注册/启停/到期扫描/版本记录，读写均按归属用户隔离
  * @Author gj
  * @Date 2026/9/18
  * @Version 1.0
@@ -47,21 +47,27 @@ public class AutoSiteService {
     }
 
     /**
-     * 注册自动更新站点；URL 立即通过安全策略校验（公网 DNS、http/https、无凭据）
+     * 注册自动更新站点并绑定归属用户；URL 立即通过安全策略校验（公网 DNS、http/https、无凭据），
+     * 判重按 (用户, URL) 维度：同一 URL 允许由不同用户各自托管；
+     * 归属用户为空时直接拒绝，避免写入对任何登录用户都不可见的站点
      */
     @Transactional
-    public AutoSite create(String url, boolean includeImages, boolean includeVideos,
+    public AutoSite create(Long userId, String url, boolean includeImages, boolean includeVideos,
                            boolean includeNews, int intervalHours) {
+        if (userId == null) {
+            throw new IllegalArgumentException("请先登录后再添加自动更新站点");
+        }
         if (intervalHours < MIN_INTERVAL_HOURS || intervalHours > MAX_INTERVAL_HOURS) {
             throw new IllegalArgumentException("更新间隔必须在 " + MIN_INTERVAL_HOURS
                     + " 到 " + MAX_INTERVAL_HOURS + " 小时之间");
         }
         String normalized = normalizeUrl(url);
-        if (siteRepository.existsByUrl(normalized)) {
+        if (siteRepository.existsByUserIdAndUrl(userId, normalized)) {
             throw new IllegalArgumentException("该网站已在自动更新列表中：" + normalized);
         }
         LocalDateTime now = LocalDateTime.now();
         AutoSite site = new AutoSite();
+        site.setUserId(userId);
         site.setUrl(normalized);
         site.setIncludeImages(includeImages);
         site.setIncludeVideos(includeVideos);
@@ -73,13 +79,16 @@ public class AutoSiteService {
         site.setCreatedAt(now);
         site.setUpdatedAt(now);
         AutoSite saved = siteRepository.save(site);
-        log.info("自动更新站点已注册：{}（每 {} 小时）", normalized, intervalHours);
+        log.info("自动更新站点已注册：{}（用户 {}，每 {} 小时）", normalized, userId, intervalHours);
         return saved;
     }
 
+    /**
+     * 某用户名下的站点列表；用户为空（游客/存量数据）时返回空集
+     */
     @Transactional(readOnly = true)
-    public List<AutoSite> list() {
-        return siteRepository.findAllByOrderByCreatedAtDesc();
+    public List<AutoSite> listOwned(Long userId) {
+        return userId == null ? List.of() : siteRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +97,18 @@ public class AutoSiteService {
     }
 
     /**
-     * 到期的启用站点（按到期时间升序），供调度器消费
+     * 仅取归属当前用户的站点；id/用户任一为空或归属不符都返回 empty（越权与不存在统一按 404 处理）
+     */
+    @Transactional(readOnly = true)
+    public Optional<AutoSite> findOwned(Long id, Long userId) {
+        if (id == null || userId == null) {
+            return Optional.empty();
+        }
+        return find(id).filter(site -> userId.equals(site.getUserId()));
+    }
+
+    /**
+     * 到期的启用站点（按到期时间升序），供调度器消费；调度线程不属于任何请求用户，保持全局扫描
      */
     @Transactional(readOnly = true)
     public List<AutoSite> dueSites() {
@@ -99,8 +119,8 @@ public class AutoSiteService {
      * 启用/停用；重新启用且已过期时立即排期
      */
     @Transactional
-    public AutoSite setEnabled(Long id, boolean enabled) {
-        AutoSite site = requireSite(id);
+    public AutoSite setEnabled(Long id, boolean enabled, Long userId) {
+        AutoSite site = requireOwned(id, userId);
         LocalDateTime now = LocalDateTime.now();
         site.setEnabled(enabled);
         if (enabled && site.getNextRunAt().isBefore(now)) {
@@ -114,8 +134,8 @@ public class AutoSiteService {
      * 手动触发：把下次执行时间提前到现在
      */
     @Transactional
-    public AutoSite runNow(Long id) {
-        AutoSite site = requireSite(id);
+    public AutoSite runNow(Long id, Long userId) {
+        AutoSite site = requireOwned(id, userId);
         LocalDateTime now = LocalDateTime.now();
         site.setNextRunAt(now);
         site.setUpdatedAt(now);
@@ -182,8 +202,8 @@ public class AutoSiteService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        AutoSite site = requireSite(id);
+    public void delete(Long id, Long userId) {
+        AutoSite site = requireOwned(id, userId);
         versionRepository.deleteBySiteId(site.getId());
         siteRepository.delete(site);
         log.info("自动更新站点已删除：{}", site.getUrl());
@@ -207,6 +227,15 @@ public class AutoSiteService {
 
     private AutoSite requireSite(Long id) {
         return siteRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("自动更新站点不存在：" + id));
+    }
+
+    /**
+     * 写路径的归属校验：不存在与不属于该用户同样归一为「站点不存在」，
+     * 由控制器统一按 404 透出（不区分不存在与无权限）
+     */
+    private AutoSite requireOwned(Long id, Long userId) {
+        return findOwned(id, userId)
                 .orElseThrow(() -> new IllegalArgumentException("自动更新站点不存在：" + id));
     }
 

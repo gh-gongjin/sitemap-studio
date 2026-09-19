@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,6 +36,8 @@ class AutoSiteServiceTest {
 
     private static final String SITE = "https://example.com";
     private static final String XML = "<urlset></urlset>";
+    private static final Long OWNER = 7L;
+    private static final Long OTHER = 8L;
 
     private AutoSiteRepository siteRepository;
     private AutoSiteVersionRepository versionRepository;
@@ -52,12 +55,13 @@ class AutoSiteServiceTest {
     @Test
     void shouldCreateSiteWithPendingStatusWhenValidUrl() {
         // Given
-        when(siteRepository.existsByUrl(SITE)).thenReturn(false);
+        when(siteRepository.existsByUserIdAndUrl(OWNER, SITE)).thenReturn(false);
 
         // When
-        AutoSite site = service.create(SITE, true, false, true, 24);
+        AutoSite site = service.create(OWNER, SITE, true, false, true, 24);
 
         // Then
+        assertThat(site.getUserId()).isEqualTo(OWNER);
         assertThat(site.getUrl()).isEqualTo(SITE);
         assertThat(site.isIncludeImages()).isTrue();
         assertThat(site.isIncludeVideos()).isFalse();
@@ -71,24 +75,49 @@ class AutoSiteServiceTest {
     }
 
     @Test
-    void shouldRejectDuplicateWhenUrlExists() {
+    void shouldRejectDuplicateWhenUrlExistsForSameUser() {
         // Given
-        when(siteRepository.existsByUrl(SITE)).thenReturn(true);
+        when(siteRepository.existsByUserIdAndUrl(OWNER, SITE)).thenReturn(true);
 
         // When & Then
-        assertThatThrownBy(() -> service.create(SITE, false, false, false, 24))
+        assertThatThrownBy(() -> service.create(OWNER, SITE, false, false, false, 24))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("已在自动更新列表中");
         verify(siteRepository, never()).save(any(AutoSite.class));
     }
 
     @Test
+    void shouldAllowSameUrlWhenOwnedByAnotherUser() {
+        // Given: 同一 URL 只在本用户名下重复
+        when(siteRepository.existsByUserIdAndUrl(OWNER, SITE)).thenReturn(false);
+
+        // When
+        AutoSite site = service.create(OWNER, SITE, false, false, false, 24);
+
+        // Then: 判重按 (用户, URL) 维度，他人占用不阻塞本人
+        assertThat(site.getUserId()).isEqualTo(OWNER);
+        verify(siteRepository).existsByUserIdAndUrl(OWNER, SITE);
+        verify(siteRepository, never()).existsByUserIdAndUrl(OTHER, SITE);
+    }
+
+    @Test
+    void shouldRejectCreateWhenOwnerMissing() {
+        // When & Then: 无归属用户不得落库，否则站点会对任何登录用户都不可见
+        assertThatThrownBy(() -> service.create(null, SITE, false, false, false, 24))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("登录");
+        verify(siteRepository, never()).save(any(AutoSite.class));
+        verify(siteRepository, never()).existsByUserIdAndUrl(any(), anyString());
+    }
+
+    @Test
     void shouldRejectIntervalWhenOutOfRange() {
         // When & Then
-        assertThatThrownBy(() -> service.create(SITE, false, false, false, 0))
+        assertThatThrownBy(() -> service.create(OWNER, SITE, false, false, false, 0))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("更新间隔");
-        assertThatThrownBy(() -> service.create(SITE, false, false, false, AutoSiteService.MAX_INTERVAL_HOURS + 1))
+        assertThatThrownBy(() -> service.create(OWNER, SITE, false, false, false,
+                AutoSiteService.MAX_INTERVAL_HOURS + 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("更新间隔");
     }
@@ -100,7 +129,8 @@ class AutoSiteServiceTest {
                 address(10, 0, 0, 1)}));
 
         // When & Then
-        assertThatThrownBy(() -> service.create("http://internal.example.com/", false, false, false, 24))
+        assertThatThrownBy(() -> service.create(OWNER, "http://internal.example.com/",
+                false, false, false, 24))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("内网");
     }
@@ -108,7 +138,8 @@ class AutoSiteServiceTest {
     @Test
     void shouldRejectCredentialUrlWhenUserInfoPresent() {
         // When & Then
-        assertThatThrownBy(() -> service.create("https://user:pass@example.com/", false, false, false, 24))
+        assertThatThrownBy(() -> service.create(OWNER, "https://user:pass@example.com/",
+                false, false, false, 24))
                 .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("凭据");
     }
@@ -116,10 +147,10 @@ class AutoSiteServiceTest {
     @Test
     void shouldNormalizeUrlWhenCaseAndTrailingSlash() {
         // Given
-        when(siteRepository.existsByUrl("https://example.com/docs")).thenReturn(false);
+        when(siteRepository.existsByUserIdAndUrl(OWNER, "https://example.com/docs")).thenReturn(false);
 
         // When
-        AutoSite site = service.create("HTTPS://Example.COM/docs/?q=1#top", false, false, false, 24);
+        AutoSite site = service.create(OWNER, "HTTPS://Example.COM/docs/?q=1#top", false, false, false, 24);
 
         // Then
         assertThat(site.getUrl()).isEqualTo("https://example.com/docs");
@@ -128,13 +159,30 @@ class AutoSiteServiceTest {
     @Test
     void shouldDecoratePortAndPathWhenPresent() {
         // Given
-        when(siteRepository.existsByUrl("http://example.com:8080/blog")).thenReturn(false);
+        when(siteRepository.existsByUserIdAndUrl(OWNER, "http://example.com:8080/blog")).thenReturn(false);
 
         // When
-        AutoSite site = service.create("http://example.com:8080/blog/", false, false, false, 12);
+        AutoSite site = service.create(OWNER, "http://example.com:8080/blog/", false, false, false, 12);
 
         // Then
         assertThat(site.getUrl()).isEqualTo("http://example.com:8080/blog");
+    }
+
+    @Test
+    void shouldReturnOwnSitesFromRepository() {
+        // Given
+        when(siteRepository.findByUserIdOrderByCreatedAtDesc(OWNER)).thenReturn(List.of(site(1L, 24)));
+
+        // When / Then
+        assertThat(service.listOwned(OWNER)).hasSize(1);
+        verify(siteRepository).findByUserIdOrderByCreatedAtDesc(OWNER);
+    }
+
+    @Test
+    void shouldReturnEmptyListWhenUserIdNull() {
+        // When / Then: 游客没有作用域，不查库
+        assertThat(service.listOwned(null)).isEmpty();
+        verify(siteRepository, never()).findByUserIdOrderByCreatedAtDesc(any());
     }
 
     @Test
@@ -149,6 +197,39 @@ class AutoSiteServiceTest {
     }
 
     @Test
+    void shouldReturnSiteWhenFindOwnedMatchesUser() {
+        // Given
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(site(1L, 24)));
+
+        // When / Then
+        assertThat(service.findOwned(1L, OWNER)).map(AutoSite::getId).hasValue(1L);
+    }
+
+    @Test
+    void shouldReturnEmptyWhenFindOwnedDoesNotMatchUser() {
+        // Given: 站点归属他人
+        AutoSite other = site(1L, 24);
+        other.setUserId(OTHER);
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(other));
+
+        // When / Then
+        assertThat(service.findOwned(1L, OWNER)).isEmpty();
+    }
+
+    @Test
+    void shouldReturnEmptyWhenFindOwnedArgumentsMissing() {
+        // Given: 存量数据没有归属
+        AutoSite legacy = site(1L, 24);
+        legacy.setUserId(null);
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(legacy));
+
+        // When / Then: 无归属站点与缺参数都不可见
+        assertThat(service.findOwned(1L, OWNER)).isEmpty();
+        assertThat(service.findOwned(null, OWNER)).isEmpty();
+        assertThat(service.findOwned(1L, null)).isEmpty();
+    }
+
+    @Test
     void shouldResetNextRunWhenRunNow() {
         // Given
         AutoSite site = site(1L, 24);
@@ -156,10 +237,24 @@ class AutoSiteServiceTest {
         when(siteRepository.findById(1L)).thenReturn(Optional.of(site));
 
         // When
-        AutoSite updated = service.runNow(1L);
+        AutoSite updated = service.runNow(1L, OWNER);
 
         // Then
         assertThat(updated.getNextRunAt()).isBeforeOrEqualTo(LocalDateTime.now());
+    }
+
+    @Test
+    void shouldRejectRunNowWhenSiteOwnedByAnotherUser() {
+        // Given
+        AutoSite other = site(1L, 24);
+        other.setUserId(OTHER);
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(other));
+
+        // When & Then: 越权与不存在归一，且不产生任何写入
+        assertThatThrownBy(() -> service.runNow(1L, OWNER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不存在");
+        verify(siteRepository, never()).save(any(AutoSite.class));
     }
 
     @Test
@@ -171,7 +266,7 @@ class AutoSiteServiceTest {
         when(siteRepository.findById(1L)).thenReturn(Optional.of(site));
 
         // When
-        AutoSite updated = service.setEnabled(1L, true);
+        AutoSite updated = service.setEnabled(1L, true, OWNER);
 
         // Then
         assertThat(updated.isEnabled()).isTrue();
@@ -187,11 +282,25 @@ class AutoSiteServiceTest {
         when(siteRepository.findById(1L)).thenReturn(Optional.of(site));
 
         // When
-        AutoSite updated = service.setEnabled(1L, false);
+        AutoSite updated = service.setEnabled(1L, false, OWNER);
 
         // Then
         assertThat(updated.isEnabled()).isFalse();
         assertThat(updated.getNextRunAt()).isEqualTo(future);
+    }
+
+    @Test
+    void shouldRejectSetEnabledWhenSiteOwnedByAnotherUser() {
+        // Given
+        AutoSite other = site(1L, 24);
+        other.setUserId(OTHER);
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(other));
+
+        // When & Then
+        assertThatThrownBy(() -> service.setEnabled(1L, false, OWNER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不存在");
+        verify(siteRepository, never()).save(any(AutoSite.class));
     }
 
     @Test
@@ -330,11 +439,26 @@ class AutoSiteServiceTest {
         when(siteRepository.findById(1L)).thenReturn(Optional.of(site));
 
         // When
-        service.delete(1L);
+        service.delete(1L, OWNER);
 
         // Then
         verify(versionRepository).deleteBySiteId(1L);
         verify(siteRepository).delete(site);
+    }
+
+    @Test
+    void shouldRejectDeleteWhenSiteOwnedByAnotherUser() {
+        // Given
+        AutoSite other = site(1L, 24);
+        other.setUserId(OTHER);
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(other));
+
+        // When & Then: 越权删除被拒，站点与版本都还在
+        assertThatThrownBy(() -> service.delete(1L, OWNER))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("不存在");
+        verify(siteRepository, never()).delete(any(AutoSite.class));
+        verify(versionRepository, never()).deleteBySiteId(any());
     }
 
     @Test
@@ -343,7 +467,7 @@ class AutoSiteServiceTest {
         when(siteRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         // When & Then
-        assertThatThrownBy(() -> service.runNow(9L))
+        assertThatThrownBy(() -> service.runNow(9L, OWNER))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不存在");
     }
@@ -382,6 +506,7 @@ class AutoSiteServiceTest {
     private AutoSite site(Long id, int intervalHours) {
         AutoSite site = new AutoSite();
         site.setId(id);
+        site.setUserId(OWNER);
         site.setUrl(SITE);
         site.setIntervalHours(intervalHours);
         site.setEnabled(true);

@@ -26,7 +26,15 @@ public class AutoSite {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "site_url", nullable = false, unique = true, length = 2048)
+    /**
+     * 归属用户；为空表示升级前的存量数据，对任何登录用户都不可见。
+     * site_url 不再声明全局唯一（唯一性改为 (user_id, site_url) 联合唯一，
+     * 由 AutoSiteSchemaMigration 建立并负责迁移旧约束）
+     */
+    @Column(name = "user_id")
+    private Long userId;
+
+    @Column(name = "site_url", nullable = false, length = 2048)
     private String url;
 
     @Column(name = "include_images", nullable = false)

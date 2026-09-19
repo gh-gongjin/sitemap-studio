@@ -5,18 +5,16 @@ import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @ClassName AutoSiteRepositoryTest
- * @Description 自动更新存储层 JPA 集成测试（内存 H2 验证建表与派生查询）
+ * @Description 自动更新存储层 JPA 集成测试（内存 H2 验证建表与按归属用户的派生查询）
  * @Author gj
  * @Date 2026/9/18
  * @Version 1.0
@@ -65,14 +63,32 @@ class AutoSiteRepositoryTest {
     }
 
     @Test
-    void shouldRejectDuplicateUrlWhenSameUrlSaved() {
-        // Given
-        siteRepository.saveAndFlush(site("https://example.com", true, LocalDateTime.now(), true));
+    void shouldListOnlySitesOwnedByGivenUser() {
+        // Given: 两个用户各一个站点，另有一条存量无归属数据
+        AutoSite mine = siteRepository.saveAndFlush(site(1L, "https://mine.example.com"));
+        siteRepository.saveAndFlush(site(2L, "https://others.example.com"));
+        AutoSite legacy = siteRepository.saveAndFlush(site(null, "https://legacy.example.com"));
 
-        // When & Then
-        assertThatThrownBy(() -> siteRepository.saveAndFlush(
-                site("https://example.com", false, LocalDateTime.now(), false)))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        // When
+        List<AutoSite> owned = siteRepository.findByUserIdOrderByCreatedAtDesc(1L);
+
+        // Then: 任何真实用户都查不到别人的站点与无归属存量数据
+        assertThat(owned).extracting(AutoSite::getId).containsExactly(mine.getId());
+        assertThat(siteRepository.findByUserIdOrderByCreatedAtDesc(2L))
+                .extracting(AutoSite::getUrl).containsExactly("https://others.example.com");
+        assertThat(siteRepository.findByUserIdOrderByCreatedAtDesc(3L)).isEmpty();
+        assertThat(legacy.getUserId()).isNull();
+    }
+
+    @Test
+    void shouldCheckDuplicateUrlPerOwnerWhenExistsByUserIdAndUrl() {
+        // Given
+        siteRepository.saveAndFlush(site(1L, "https://example.com"));
+
+        // When / Then: 判重按 (用户, URL) 维度
+        assertThat(siteRepository.existsByUserIdAndUrl(1L, "https://example.com")).isTrue();
+        assertThat(siteRepository.existsByUserIdAndUrl(2L, "https://example.com")).isFalse();
+        assertThat(siteRepository.existsByUserIdAndUrl(1L, "https://other.example.com")).isFalse();
     }
 
     @Test
@@ -109,6 +125,12 @@ class AutoSiteRepositoryTest {
         // Then
         assertThat(versionRepository.countBySiteId(siteId)).isZero();
         assertThat(versionRepository.countBySiteId(otherId)).isEqualTo(1);
+    }
+
+    private AutoSite site(Long userId, String url) {
+        AutoSite site = site(url, true, LocalDateTime.now(), true);
+        site.setUserId(userId);
+        return site;
     }
 
     private AutoSite site(String url, boolean enabled, LocalDateTime nextRunAt, boolean includeImages) {

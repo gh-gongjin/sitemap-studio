@@ -37,7 +37,7 @@ public class AutoSiteUpdater {
             String sitemapXml = enhancedSitemapGeneratorService.generateSitemapWithProgress(
                     site.getUrl(), site.isIncludeImages(), site.isIncludeVideos(), site.isIncludeNews(), taskId);
             autoSiteService.recordSuccess(site.getId(), taskId, sitemapXml, resolveUrlCount(taskId));
-            saveSeoReport(taskId, site.getUrl());
+            saveSeoReport(taskId, site.getUrl(), site.getUserId());
             pushLatestVersion(site);
             return true;
         } catch (Exception e) {
@@ -66,11 +66,11 @@ public class AutoSiteUpdater {
         return result == null ? 0 : result.getTotalPages();
     }
 
-    private void saveSeoReport(String taskId, String url) {
+    private void saveSeoReport(String taskId, String url, Long userId) {
         try {
-            // 自动更新由调度线程执行，不属于任何请求用户，报告暂无归属；
-            // Task 4 给 AutoSite 补 user_id 后改传站点归属用户
-            seoReportService.save(taskId, url, null);
+            // 调度线程没有请求上下文，报告按站点归属用户落库；
+            // 存量无归属站点（userId 为空）的报告保持无归属，对任何登录用户不可见
+            seoReportService.save(taskId, url, userId);
         } catch (Exception e) {
             log.warn("自动更新 SEO 报告保存失败：taskId={}, {}", taskId, e.getMessage());
         }
