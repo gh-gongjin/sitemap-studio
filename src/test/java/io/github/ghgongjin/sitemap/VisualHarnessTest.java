@@ -4,15 +4,18 @@ import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.entity.PushConfig;
 import io.github.ghgongjin.sitemap.entity.PushLog;
+import io.github.ghgongjin.sitemap.entity.UserAccount;
 import io.github.ghgongjin.sitemap.repository.AutoSiteRepository;
 import io.github.ghgongjin.sitemap.repository.AutoSiteVersionRepository;
 import io.github.ghgongjin.sitemap.repository.PushConfigRepository;
 import io.github.ghgongjin.sitemap.repository.PushLogRepository;
+import io.github.ghgongjin.sitemap.repository.UserAccountRepository;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.CrawlProgressService;
 import io.github.ghgongjin.sitemap.service.CredentialCipher;
 import io.github.ghgongjin.sitemap.service.SeoAuditService;
 import io.github.ghgongjin.sitemap.service.SeoReportService;
+import io.github.ghgongjin.sitemap.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -27,8 +30,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 可视化走查用 harness：仅在设置了 SITEMAP_VISUAL_HARNESS=true 时运行。
- * 用真实控制器与模板在 8091 端口启动应用，并播种三个任务（完成/失败/进行中），
+ * 可视化走查用 harness：仅在设置了 SITEMAP_VISUAL_HARNESS=true 时运行，CI 环境自动跳过。
+ * 用真实控制器与模板在 8091 端口启动应用，并播种三个任务（完成/失败/进行中）与一个走查账号
+ * harness / Passw0rd1：报告与自动站点都挂在该账号下，/reports、/report/**、/auto/** 需先登录才能看到。
  * 供浏览器在无公网抓取的前提下走查完成页、进度页与失败页。
  * 停留时长可用 SITEMAP_VISUAL_HARNESS_MS 覆盖（默认 15 分钟）。
  */
@@ -41,6 +45,9 @@ class VisualHarnessTest {
 
     private static final String DEMO_URL = "https://demo.example.com";
     private static final long DEFAULT_WINDOW_MS = 15 * 60 * 1000L;
+    /** 走查账号：报告与自动站点都归属该用户，浏览器需先登录才能看到播种数据 */
+    private static final String HARNESS_USER = "harness";
+    private static final String HARNESS_PASSWORD = "Passw0rd1";
 
     private static final String DEMO_XML = """
             <?xml version="1.0" encoding="UTF-8"?>
@@ -117,8 +124,21 @@ class VisualHarnessTest {
     @Autowired
     private CredentialCipher credentialCipher;
 
+    @Autowired
+    private AutoSiteService autoSiteService;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private UserAccountRepository userAccountRepository;
+
+    /** 走查账号的 id，播种的报告与自动站点都归属于它 */
+    private Long harnessUserId;
+
     @Test
     void keepSeededTasksAvailableForVisualWalkthrough() throws Exception {
+        harnessUserId = harnessUser().getId();
         progress.startTask("demo-done", DEMO_URL, true, true, true);
         progress.completeTask("demo-done", 5, DEMO_XML);
         seedSeoReports();
@@ -135,14 +155,15 @@ class VisualHarnessTest {
 
         String baseUrl = "http://localhost:" + port;
         log.info("Visual harness ready on {}", baseUrl);
-        log.info("  done  : {}/preview?taskId=demo-done", baseUrl);
+        log.info("  login : {}/login  (账号 {} / {})", baseUrl, HARNESS_USER, HARNESS_PASSWORD);
+        log.info("  done  : {}/preview?taskId=demo-done  （游客可见）", baseUrl);
         log.info("  doneEN: {}/preview?taskId=demo-done&lang=en", baseUrl);
         log.info("  run   : {}/task/demo-run", baseUrl);
         log.info("  fail  : {}/task/demo-fail", baseUrl);
-        log.info("  report: {}/report/demo-done", baseUrl);
-        log.info("  list  : {}/reports", baseUrl);
-        log.info("  auto  : {}/auto", baseUrl);
-        log.info("  autoD : {}/auto/{}", baseUrl, healthySiteId);
+        log.info("  report: {}/report/demo-done  （需登录）", baseUrl);
+        log.info("  list  : {}/reports  （需登录，只见本人报告）", baseUrl);
+        log.info("  auto  : {}/auto  （需登录，只见本人站点）", baseUrl);
+        log.info("  autoD : {}/auto/{}  （需登录）", baseUrl, healthySiteId);
         log.info("  push  : {}/auto/{} (push panel, SFTP + IndexNow)", baseUrl, healthySiteId);
 
         assertThat(progress.getTaskResult("demo-done").getStatus()).isEqualTo("completed");
@@ -152,9 +173,20 @@ class VisualHarnessTest {
         assertThat(autoSiteVersionRepository.countBySiteId(healthySiteId)).isEqualTo(3);
         assertThat(pushConfigRepository.count()).isEqualTo(2);
         assertThat(pushLogRepository.findBySiteIdOrderByIdDesc(healthySiteId)).hasSize(5);
+        // 播种数据都挂在走查账号名下：列表按归属过滤后应全部可见
+        assertThat(seoReportService.recent(harnessUserId)).hasSize(2);
+        assertThat(autoSiteService.listOwned(harnessUserId)).hasSize(3);
 
         Thread.sleep(windowMs());
         ticker.interrupt();
+    }
+
+    /**
+     * 走查账号：已存在则复用（同一 JVM 内重复启动 harness 不报错）
+     */
+    private UserAccount harnessUser() {
+        return userAccountRepository.findByUsername(HARNESS_USER)
+                .orElseGet(() -> userService.register(HARNESS_USER, HARNESS_PASSWORD));
     }
 
     private void seedSeoReports() {
@@ -175,14 +207,14 @@ class VisualHarnessTest {
             seoAuditService.recordPage("demo-done", new SeoAuditService.PageSeo(
                     url, 200, 210 + i, "帮助中心第 " + i + " 页", "结构健康的演示页面", 1, url, false, 1, 0));
         }
-        // 走查账号归属由 Task 5 补齐，当前游客态播种（user_id 为空）
-        seoReportService.save("demo-done", DEMO_URL, null);
+        // 报告归属走查账号：/reports 与 /report/{taskId} 按登录用户过滤，播种数据才能被本人看到
+        seoReportService.save("demo-done", DEMO_URL, harnessUserId);
 
         seoAuditService.beginAudit("demo-clean");
         seoAuditService.recordPage("demo-clean", new SeoAuditService.PageSeo(
                 "https://clean.example.com/", 200, 200, "Clean 站点", "结构健康的站点", 1,
                 "https://clean.example.com/", false, 0, 0));
-        seoReportService.save("demo-clean", "https://clean.example.com", null);
+        seoReportService.save("demo-clean", "https://clean.example.com", harnessUserId);
     }
 
     /**
@@ -301,9 +333,10 @@ class VisualHarnessTest {
         return log;
     }
 
-    private static AutoSite newAutoSite(String url, boolean images, boolean videos, boolean news,
-                                        int intervalHours, LocalDateTime createdAt) {
+    private AutoSite newAutoSite(String url, boolean images, boolean videos, boolean news,
+                                 int intervalHours, LocalDateTime createdAt) {
         AutoSite site = new AutoSite();
+        site.setUserId(harnessUserId);
         site.setUrl(url);
         site.setIncludeImages(images);
         site.setIncludeVideos(videos);

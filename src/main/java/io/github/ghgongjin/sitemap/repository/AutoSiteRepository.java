@@ -5,7 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * @ClassName AutoSiteRepository
@@ -24,8 +23,6 @@ public interface AutoSiteRepository extends JpaRepository<AutoSite, Long> {
      * 从而能查到存量无归属数据，因此入参必须非空；游客与空归属由 AutoSiteService 挡下
      */
     List<AutoSite> findByUserIdOrderByCreatedAtDesc(Long userId);
-
-    Optional<AutoSite> findByUrl(String url);
 
     /**
      * 同一用户下 URL 是否已存在（判重按归属维度，不同用户可各自托管同一 URL）；

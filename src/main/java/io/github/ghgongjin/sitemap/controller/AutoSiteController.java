@@ -4,6 +4,7 @@ import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.security.SecurityUtils;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
+import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
 import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.PushSettings;
@@ -71,7 +72,7 @@ public class AutoSiteController {
             log.info("自动更新站点已添加：{}（用户 {}）", site.getUrl(), userId);
             redirect.addFlashAttribute("flash", "auto.flash.added");
         } catch (IllegalArgumentException | SecurityException e) {
-            redirect.addFlashAttribute("flashError", e.getMessage());
+            flashError(redirect, e);
         }
         return "redirect:/auto";
     }
@@ -174,7 +175,7 @@ public class AutoSiteController {
             action.run();
             redirect.addFlashAttribute("flash", flashKey);
         } catch (IllegalArgumentException | SecurityException e) {
-            redirect.addFlashAttribute("flashError", e.getMessage());
+            flashError(redirect, e);
         }
         return "redirect:" + path;
     }
@@ -188,9 +189,24 @@ public class AutoSiteController {
                 redirect.addFlashAttribute("flashError", outcome.detail());
             }
         } catch (IllegalArgumentException | SecurityException e) {
-            redirect.addFlashAttribute("flashError", e.getMessage());
+            flashError(redirect, e);
         }
         return "redirect:" + detailPath(siteId);
+    }
+
+    /**
+     * 失败提示进 flashError：带 message key 的校验异常存 key（占位符参数存 flashErrorArgs），
+     * 由模板经 MessageSource 解析成当前语言；其余异常（爬虫安全策略、推送失败原因等原始文本）原样透出
+     */
+    private void flashError(RedirectAttributes redirect, Exception e) {
+        if (e instanceof AutoSiteValidationException keyed) {
+            redirect.addFlashAttribute("flashError", keyed.messageKey());
+            if (keyed.args().length > 0) {
+                redirect.addFlashAttribute("flashErrorArgs", keyed.args());
+            }
+            return;
+        }
+        redirect.addFlashAttribute("flashError", e.getMessage());
     }
 
     private String detailPath(Long id) {

@@ -79,10 +79,12 @@ class AutoSiteServiceTest {
         // Given
         when(siteRepository.existsByUserIdAndUrl(OWNER, SITE)).thenReturn(true);
 
-        // When & Then
+        // When & Then: 提示以 message key + 参数抛出，由模板经 MessageSource 本地化
         assertThatThrownBy(() -> service.create(OWNER, SITE, false, false, false, 24))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("已在自动更新列表中");
+                .isInstanceOfSatisfying(AutoSiteValidationException.class, error -> {
+                    assertThat(error.messageKey()).isEqualTo("auto.error.duplicate");
+                    assertThat(error.args()).containsExactly(SITE);
+                });
         verify(siteRepository, never()).save(any(AutoSite.class));
     }
 
@@ -104,8 +106,10 @@ class AutoSiteServiceTest {
     void shouldRejectCreateWhenOwnerMissing() {
         // When & Then: 无归属用户不得落库，否则站点会对任何登录用户都不可见
         assertThatThrownBy(() -> service.create(null, SITE, false, false, false, 24))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("登录");
+                .isInstanceOfSatisfying(AutoSiteValidationException.class, error -> {
+                    assertThat(error.messageKey()).isEqualTo("auto.error.needLogin");
+                    assertThat(error.args()).isEmpty();
+                });
         verify(siteRepository, never()).save(any(AutoSite.class));
         verify(siteRepository, never()).existsByUserIdAndUrl(any(), anyString());
     }
@@ -114,12 +118,14 @@ class AutoSiteServiceTest {
     void shouldRejectIntervalWhenOutOfRange() {
         // When & Then
         assertThatThrownBy(() -> service.create(OWNER, SITE, false, false, false, 0))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("更新间隔");
+                .isInstanceOfSatisfying(AutoSiteValidationException.class, error -> {
+                    assertThat(error.messageKey()).isEqualTo("auto.error.interval");
+                    assertThat(error.args()).containsExactly(AutoSiteService.MIN_INTERVAL_HOURS,
+                            AutoSiteService.MAX_INTERVAL_HOURS);
+                });
         assertThatThrownBy(() -> service.create(OWNER, SITE, false, false, false,
                 AutoSiteService.MAX_INTERVAL_HOURS + 1))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("更新间隔");
+                .isInstanceOf(AutoSiteValidationException.class);
     }
 
     @Test

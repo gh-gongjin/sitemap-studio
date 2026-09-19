@@ -8,6 +8,7 @@ import io.github.ghgongjin.sitemap.repository.SeoReportRepository;
 import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.AutoSiteUpdater;
+import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
 import io.github.ghgongjin.sitemap.service.CrawlUrlPolicy;
 import io.github.ghgongjin.sitemap.service.EnhancedSitemapGeneratorService;
 import io.github.ghgongjin.sitemap.service.SeoAuditService;
@@ -136,9 +137,9 @@ class AutoAccessControlTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/auto", "/auto/1/download"})
+    @ValueSource(strings = {"/auto", "/auto/1", "/auto/1/download"})
     void shouldRedirectGuestFromPages(String path) throws Exception {
-        // When / Then: 游客访问列表页与下载接口都先被送到登录页，页面内容不外泄
+        // When / Then: 游客访问列表页、详情页与下载接口都先被送到登录页，页面内容不外泄
         var response = mvc.perform(get(path)).andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrlPattern("http://*/login*")).andReturn().getResponse();
         assertThat(response.getContentAsString(StandardCharsets.UTF_8)).isEmpty();
@@ -155,6 +156,23 @@ class AutoAccessControlTest {
         // Then: 游客请求没有落库
         assertThat(autoSiteService.listOwned(alice.getId())).isEmpty();
         assertThat(autoSiteService.listOwned(bob.getId())).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/auto/1/run", "/auto/1/toggle", "/auto/1/delete",
+            "/auto/1/push/settings", "/auto/1/push/test", "/auto/1/push/run", "/auto/1", "/auto/1/download"
+    })
+    void shouldRedirectGuestFromEveryAutoSiteOperation(String path) throws Exception {
+        // Given / When: 游客打全部写操作与详情/下载端点（刻意不传任何表单参数、站点也不存在）
+        var response = mvc.perform(post(path).with(csrf())).andReturn().getResponse();
+
+        // Then: 门禁在安全层即 302 到登录页，控制器与参数校验都不会被触达，响应体无内容泄漏
+        assertThat(response.getStatus()).isBetween(300, 399);
+        assertThat(response.getHeader("Location")).startsWith("http://localhost/login");
+        assertThat(response.getContentAsString(StandardCharsets.UTF_8)).isEmpty();
+        // And: 没有任何站点数据被创建
+        assertThat(autoSites.count()).isZero();
     }
 
     @Test
@@ -204,10 +222,10 @@ class AutoAccessControlTest {
         assertThat(aliceSite.getUserId()).isEqualTo(alice.getId());
         assertThat(bobSite.getUserId()).isEqualTo(bob.getId());
 
-        // And: 同一用户重复添加仍被拒绝
+        // And: 同一用户重复添加仍被拒绝（提示以 message key 抛出，模板侧本地化）
         assertThatThrownBy(() -> createSite(alice.getId(), "https://dup.example.com"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("已在自动更新列表中");
+                .isInstanceOf(AutoSiteValidationException.class)
+                .hasMessage("auto.error.duplicate");
     }
 
     @Test

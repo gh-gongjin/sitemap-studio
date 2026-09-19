@@ -5,6 +5,7 @@ import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.entity.PushLog;
 import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
+import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
 import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushConfigView;
 import io.github.ghgongjin.sitemap.service.push.PushErrorCode;
@@ -24,6 +25,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.servlet.i18n.FixedLocaleResolver;
@@ -75,6 +77,7 @@ class AutoSiteControllerTest {
     private PushConfigService pushConfigService;
     private SitemapPushService sitemapPushService;
     private MockMvc mvc;
+    private MockMvc mvcEn;
 
     @BeforeEach
     void setUp() {
@@ -88,6 +91,14 @@ class AutoSiteControllerTest {
         AutoSiteController controller =
                 new AutoSiteController(autoSiteService, pushConfigService, sitemapPushService);
 
+        mvc = mockMvc(controller, Locale.SIMPLIFIED_CHINESE);
+        mvcEn = mockMvc(controller, Locale.ENGLISH);
+    }
+
+    /**
+     * standalone 装配真实 Thymeleaf 引擎与 messages 资源束，按入参语言解析 flash 文案
+     */
+    private MockMvc mockMvc(AutoSiteController controller, Locale locale) {
         ClassLoaderTemplateResolver templates = new ClassLoaderTemplateResolver();
         templates.setPrefix("templates/");
         templates.setSuffix(".html");
@@ -104,8 +115,8 @@ class AutoSiteControllerTest {
         views.setTemplateEngine(engine);
         views.setCharacterEncoding(StandardCharsets.UTF_8.name());
         views.setViewNames(new String[]{"auto", "auto-detail"});
-        mvc = MockMvcBuilders.standaloneSetup(controller)
-                .setLocaleResolver(new FixedLocaleResolver(Locale.SIMPLIFIED_CHINESE))
+        return MockMvcBuilders.standaloneSetup(controller)
+                .setLocaleResolver(new FixedLocaleResolver(locale))
                 .setViewResolvers(views, new InternalResourceViewResolver("/", ".html")).build();
     }
 
@@ -180,15 +191,97 @@ class AutoSiteControllerTest {
 
     @Test
     void shouldFlashErrorWhenCreateRejected() throws Exception {
-        // Given
+        // Given: 非 message key 的原始原因（爬虫安全策略、推送失败等）保持原文透出
         when(autoSiteService.create(eq(USER_ID), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
-                .thenThrow(new IllegalArgumentException("该网站已在自动更新列表中：" + SITE));
+                .thenThrow(new SecurityException("拒绝包含内网地址的主机"));
 
         // When & Then
         mvc.perform(post("/auto").param("url", SITE))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/auto"))
-                .andExpect(flash().attribute("flashError", "该网站已在自动更新列表中：" + SITE));
+                .andExpect(flash().attribute("flashError", "拒绝包含内网地址的主机"));
+    }
+
+    @Test
+    void shouldFlashMessageKeyAndArgsWhenCreateValidationFails() throws Exception {
+        // Given
+        when(autoSiteService.create(eq(USER_ID), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
+                .thenThrow(new AutoSiteValidationException("auto.error.duplicate", SITE));
+
+        // When
+        MvcResult result = mvc.perform(post("/auto").param("url", SITE))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/auto"))
+                .andExpect(flash().attribute("flashError", "auto.error.duplicate"))
+                .andReturn();
+
+        // Then: flashError 存 key，占位符参数单独放进 flashErrorArgs
+        assertThat((Object[]) result.getFlashMap().get("flashErrorArgs")).containsExactly(SITE);
+    }
+
+    @Test
+    void shouldRenderLocalizedDuplicateMessageWhenFollowingRedirectInChinese() throws Exception {
+        // Given
+        givenCreateRejects(new AutoSiteValidationException("auto.error.duplicate", SITE));
+
+        // When
+        Document page = renderFlash(Locale.SIMPLIFIED_CHINESE);
+
+        // Then: key 由 MessageSource 解析成中文，参数填进占位符
+        assertThat(page.selectFirst(".flash span").text())
+                .isEqualTo("该网站已在自动更新列表中：" + SITE);
+        assertThat(page.html()).doesNotContain("auto.error.duplicate", "??auto", "null");
+    }
+
+    @Test
+    void shouldRenderLocalizedDuplicateMessageWhenFollowingRedirectInEnglish() throws Exception {
+        // Given
+        givenCreateRejects(new AutoSiteValidationException("auto.error.duplicate", SITE));
+
+        // When
+        Document page = renderFlash(Locale.ENGLISH);
+
+        // Then: 同一 key 按当前语言解析为英文
+        assertThat(page.selectFirst(".flash span").text())
+                .isEqualTo("This site is already in your auto-update list: " + SITE);
+        assertThat(page.html()).doesNotContain("auto.error.duplicate", "??auto", "请先登录");
+    }
+
+    @Test
+    void shouldRenderLocalizedIntervalMessageWithBoundsWhenFollowingRedirect() throws Exception {
+        // Given
+        givenCreateRejects(new AutoSiteValidationException("auto.error.interval",
+                AutoSiteService.MIN_INTERVAL_HOURS, AutoSiteService.MAX_INTERVAL_HOURS));
+
+        // When & Then: 参数为整数时按英文/中文各自模板渲染
+        assertThat(renderFlash(Locale.ENGLISH).selectFirst(".flash span").text())
+                .isEqualTo("Update interval must be between 1 and 720 hours");
+    }
+
+    @Test
+    void shouldRenderNeedLoginMessageWhenFlashErrorKeyHasNoArgs() throws Exception {
+        // Given
+        givenCreateRejects(new AutoSiteValidationException("auto.error.needLogin"));
+
+        // When
+        Document page = renderFlash(Locale.SIMPLIFIED_CHINESE);
+
+        // Then: 无参 key 也走同一条解析路径
+        assertThat(page.selectFirst(".flash span").text()).isEqualTo("请先登录后再添加自动更新站点");
+        assertThat(page.html()).doesNotContain("auto.error.needLogin", "??auto");
+    }
+
+    @Test
+    void shouldRenderRawMessageWhenFlashErrorIsNotAMessageKey() throws Exception {
+        // Given
+        givenCreateRejects(new SecurityException("拒绝包含内网地址的主机"));
+
+        // When
+        Document page = renderFlash(Locale.SIMPLIFIED_CHINESE);
+
+        // Then: 不是 key 就原样展示，且不能被 MessageSource 兜底成 ??key??
+        assertThat(page.selectFirst(".flash span").text()).isEqualTo("拒绝包含内网地址的主机");
+        assertThat(page.html()).doesNotContain("??");
     }
 
     @Test
@@ -666,9 +759,29 @@ class AutoSiteControllerTest {
     }
 
     private Document render(MockHttpServletRequestBuilder request) throws Exception {
-        String html = mvc.perform(request).andExpect(status().isOk())
+        return render(mvc, request);
+    }
+
+    private Document render(MockMvc target, MockHttpServletRequestBuilder request) throws Exception {
+        String html = target.perform(request).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return Jsoup.parse(html);
+    }
+
+    /**
+     * 让 /auto 添加表单以指定异常失败，便于走「提交 → 重定向 → 回显 flashError」全链路
+     */
+    private void givenCreateRejects(RuntimeException failure) {
+        when(autoSiteService.create(eq(USER_ID), anyString(), anyBoolean(), anyBoolean(), anyBoolean(), anyInt()))
+                .thenThrow(failure);
+        when(autoSiteService.listOwned(USER_ID)).thenReturn(List.of());
+    }
+
+    private Document renderFlash(Locale locale) throws Exception {
+        MockMvc target = Locale.ENGLISH.equals(locale) ? mvcEn : mvc;
+        MockHttpSession session = new MockHttpSession();
+        target.perform(post("/auto").session(session).param("url", SITE));
+        return render(target, get("/auto").session(session));
     }
 
     private AutoSite site(boolean enabled, String lastStatus) {

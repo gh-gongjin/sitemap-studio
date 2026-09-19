@@ -1,5 +1,6 @@
 package io.github.ghgongjin.sitemap.controller;
 
+import io.github.ghgongjin.sitemap.security.SecurityUtils;
 import io.github.ghgongjin.sitemap.service.RegistrationException;
 import io.github.ghgongjin.sitemap.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +13,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 /**
  * @ClassName AuthController
  * @Description 登录/注册页面路由与注册表单处理：注册失败按原因映射本地化消息 key，
- *              回显到注册页内联展示（禁止浏览器原生弹窗）
+ *              回显到注册页内联展示（禁止浏览器原生弹窗）；
+ *              已登录用户访问登录/注册页（GET 或 POST）一律 302 回首页（设计文档 §3 访问矩阵）
  * @Author gj
  * @Date 2026/9/19
  * @Version 1.0
@@ -25,12 +27,14 @@ public class AuthController {
 
     @GetMapping("/login")
     public String loginPage() {
-        return "login";
+        // 矩阵 §3：已登录用户访问登录页直接 302 回首页，不再向本人展示登录表单
+        return alreadyLoggedIn() ? "redirect:/" : "login";
     }
 
     @GetMapping("/register")
     public String registerPage() {
-        return "register";
+        // 同上：已登录用户无需再注册
+        return alreadyLoggedIn() ? "redirect:/" : "register";
     }
 
     @PostMapping("/register")
@@ -38,6 +42,9 @@ public class AuthController {
                            @RequestParam String password,
                            @RequestParam String confirmPassword,
                            Model model) {
+        if (alreadyLoggedIn()) {
+            return "redirect:/";
+        }
         if (!password.equals(confirmPassword)) {
             return reRender(model, username, "auth.error.mismatch");
         }
@@ -58,5 +65,12 @@ public class AuthController {
         model.addAttribute("username", username);
         model.addAttribute("errorKey", errorKey);
         return "register";
+    }
+
+    /**
+     * 是否已有登录身份（游客/匿名返回 false）
+     */
+    private boolean alreadyLoggedIn() {
+        return SecurityUtils.currentUserId() != null;
     }
 }

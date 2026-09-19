@@ -49,21 +49,22 @@ public class AutoSiteService {
     /**
      * 注册自动更新站点并绑定归属用户；URL 立即通过安全策略校验（公网 DNS、http/https、无凭据），
      * 判重按 (用户, URL) 维度：同一 URL 允许由不同用户各自托管；
-     * 归属用户为空时直接拒绝，避免写入对任何登录用户都不可见的站点
+     * 归属用户为空时直接拒绝，避免写入对任何登录用户都不可见的站点。
+     * 校验失败一律抛 {@link AutoSiteValidationException}（message key + 参数），提示文案在模板侧本地化
      */
     @Transactional
     public AutoSite create(Long userId, String url, boolean includeImages, boolean includeVideos,
                            boolean includeNews, int intervalHours) {
         if (userId == null) {
-            throw new IllegalArgumentException("请先登录后再添加自动更新站点");
+            throw new AutoSiteValidationException("auto.error.needLogin");
         }
         if (intervalHours < MIN_INTERVAL_HOURS || intervalHours > MAX_INTERVAL_HOURS) {
-            throw new IllegalArgumentException("更新间隔必须在 " + MIN_INTERVAL_HOURS
-                    + " 到 " + MAX_INTERVAL_HOURS + " 小时之间");
+            throw new AutoSiteValidationException("auto.error.interval",
+                    MIN_INTERVAL_HOURS, MAX_INTERVAL_HOURS);
         }
         String normalized = normalizeUrl(url);
         if (siteRepository.existsByUserIdAndUrl(userId, normalized)) {
-            throw new IllegalArgumentException("该网站已在自动更新列表中：" + normalized);
+            throw new AutoSiteValidationException("auto.error.duplicate", normalized);
         }
         LocalDateTime now = LocalDateTime.now();
         AutoSite site = new AutoSite();

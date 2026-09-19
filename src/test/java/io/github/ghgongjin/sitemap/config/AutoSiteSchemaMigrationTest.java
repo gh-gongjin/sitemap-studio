@@ -7,16 +7,22 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import javax.sql.DataSource;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -119,6 +125,26 @@ class AutoSiteSchemaMigrationTest {
     }
 
     @Test
+    void shouldStayReadyWhenEveryDdlStatementFails() {
+        // Given: 旧库确实挂着待删的单列唯一约束，但所有 DDL 执行都会失败
+        //        （例如账号无 DDL 权限、表被别的连接锁住）
+        jdbc.execute("ALTER TABLE auto_site ADD CONSTRAINT UK_LEGACY_D UNIQUE (site_url)");
+        CountingJdbcTemplate brokenDdl = new CountingJdbcTemplate(
+                Objects.requireNonNull(jdbc.getDataSource()));
+
+        // When: 迁移被调用，两条 DDL 都抛 DataAccessException
+        assertThatCode(() -> new AutoSiteSchemaMigration(brokenDdl).migrate())
+                .doesNotThrowAnyException();
+
+        // Then: 异常被逐条降级吞掉，不打断 ApplicationReadyEvent，应用保持就绪
+        //  And: 两条 DDL 各自独立尝试（删约束失败仍继续建联合唯一索引）
+        assertThat(brokenDdl.attempts).isEqualTo(2);
+        // And: 隔离语义不依赖该 DDL：归属过滤在应用层，旧约束残留只是少了一层库内兜底
+        assertThat(uniqueConstraintNames()).contains("UK_LEGACY_D");
+        assertThat(siteRepository.findByUserIdOrderByCreatedAtDesc(1L)).isEmpty();
+    }
+
+    @Test
     void shouldSelectOnlySingleColumnSiteUrlConstraint() {
         // Given: 单列 SITE_URL 的旧全局约束、联合唯一、以及另一列的单列唯一
         Map<String, Set<String>> columns = Map.of(
@@ -146,6 +172,25 @@ class AutoSiteSchemaMigrationTest {
                         + "WHERE TABLE_NAME = 'AUTO_SITE' AND INDEX_NAME = 'UK_AUTO_SITE_USER_URL' "
                         + "ORDER BY ORDINAL_POSITION",
                 String.class);
+    }
+
+    /**
+     * 真实 DataSource 上的 JdbcTemplate 替身：SELECT 查询走真实库（约束发现逻辑仍被真实数据检验），
+     * 只把 DDL 执行改成必然失败，并记录尝试次数
+     */
+    private static class CountingJdbcTemplate extends JdbcTemplate {
+
+        private int attempts;
+
+        CountingJdbcTemplate(DataSource dataSource) {
+            super(dataSource);
+        }
+
+        @Override
+        public void execute(String sql) throws DataAccessException {
+            attempts++;
+            throw new BadSqlGrammarException("execute", sql, new SQLException("模拟 DDL 失败"));
+        }
     }
 
     private AutoSite site(Long userId, String url) {
