@@ -11,8 +11,8 @@ import org.springframework.security.web.SecurityFilterChain;
 /**
  * @ClassName SecurityConfig
  * @Description Spring Security 配置：提供 BCrypt（DelegatingPasswordEncoder）bean 与过滤链。
- *              Task 2 启用表单登录/退出并恢复 CSRF 保护（/ws-progress/** 为 SockJS 协商流量豁免），
- *              授权矩阵仍整体放行，业务门禁由 Task 3/4 收紧
+ *              表单登录/退出与 CSRF 保护（/ws-progress/** 为 SockJS 协商流量豁免）已就位，
+ *              SEO 报告详情、导出与历史列表需登录，其余路径仍放行（自动更新门禁由 Task 4 收紧）
  * @Author gj
  * @Date 2026/9/19
  * @Version 1.0
@@ -31,7 +31,9 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/register", "/css/**", "/js/**",
                                 "/fonts/**", "/favicon.ico", "/error").permitAll()
-                        .anyRequest().permitAll())   // Task 3/4 收紧为报告与自动更新门禁
+                        // SEO 报告详情/导出/历史列表按用户隔离，游客先登录（SavedRequest 登录后回跳）
+                        .requestMatchers("/reports", "/report/**").authenticated()
+                        .anyRequest().permitAll())   // Task 4 继续收紧自动更新相关路径
                 .formLogin(form -> form
                         .loginPage("/login")
                         .failureUrl("/login?error=1")

@@ -175,13 +175,14 @@ class VisualHarnessTest {
             seoAuditService.recordPage("demo-done", new SeoAuditService.PageSeo(
                     url, 200, 210 + i, "帮助中心第 " + i + " 页", "结构健康的演示页面", 1, url, false, 1, 0));
         }
-        seoReportService.save("demo-done", DEMO_URL);
+        // 走查账号归属由 Task 5 补齐，当前游客态播种（user_id 为空）
+        seoReportService.save("demo-done", DEMO_URL, null);
 
         seoAuditService.beginAudit("demo-clean");
         seoAuditService.recordPage("demo-clean", new SeoAuditService.PageSeo(
                 "https://clean.example.com/", 200, 200, "Clean 站点", "结构健康的站点", 1,
                 "https://clean.example.com/", false, 0, 0));
-        seoReportService.save("demo-clean", "https://clean.example.com");
+        seoReportService.save("demo-clean", "https://clean.example.com", null);
     }
 
     /**

@@ -4,8 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.ghgongjin.sitemap.entity.SeoReport;
 import io.github.ghgongjin.sitemap.repository.SeoReportRepository;
+import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.SeoAuditService;
+import io.github.ghgongjin.sitemap.service.UserService;
 import org.jsoup.Jsoup;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -26,6 +29,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -42,7 +46,21 @@ class ReportExportIntegrationTest {
     private SeoReportRepository repository;
 
     @Autowired
+    private UserService userService;
+
+    @Autowired
     private ObjectMapper objectMapper;
+
+    /**
+     * 报告归属用户：真实注册后取其 id 构造登录主体，禁止硬编码用户 id
+     */
+    private UserAccountDetails tester;
+
+    @BeforeEach
+    void setUp() {
+        var account = userService.register("tester", "Passw0rd1");
+        tester = new UserAccountDetails(account.getId(), account.getUsername(), account.getPasswordHash());
+    }
 
     @Test
     void shouldDownloadPersistedReportWithoutLiveCrawlTask() throws Exception {
@@ -134,9 +152,33 @@ class ReportExportIntegrationTest {
 
     @Test
     void shouldRejectMissingReportWithoutDownloadHeaders() throws Exception {
-        MockHttpServletResponse response = mvc.perform(get("/report/not-found/export"))
+        MockHttpServletResponse response = mvc.perform(get("/report/not-found/export").with(user(tester)))
                 .andExpect(status().isNotFound()).andReturn().getResponse();
 
+        assertThat(response.getHeader("Content-Disposition")).isNull();
+    }
+
+    @Test
+    void shouldRejectLegacyReportWithoutOwner() throws Exception {
+        // Given: 历史存量报告没有归属（user_id 为空），对任何登录用户都不可见
+        SeoReport legacy = saveReport("[]");
+        legacy.setUserId(null);
+        repository.flush();
+
+        MockHttpServletResponse response = mvc.perform(get("/report/export-test/export").with(user(tester)))
+                .andExpect(status().isNotFound()).andReturn().getResponse();
+
+        assertThat(response.getHeader("Content-Disposition")).isNull();
+    }
+
+    @Test
+    void shouldRedirectGuestToLoginWithoutLeakingExport() throws Exception {
+        saveReport("[]");
+
+        MockHttpServletResponse response = mvc.perform(get("/report/export-test/export"))
+                .andExpect(status().is3xxRedirection()).andReturn().getResponse();
+
+        assertThat(response.getHeader("Location")).startsWith("http://localhost/login");
         assertThat(response.getHeader("Content-Disposition")).isNull();
     }
 
@@ -144,7 +186,7 @@ class ReportExportIntegrationTest {
     void shouldFailExportRatherThanSilentlyDropCorruptedIssues() {
         saveReport("not-json");
 
-        assertThatThrownBy(() -> mvc.perform(get("/report/export-test/export")))
+        assertThatThrownBy(() -> mvc.perform(get("/report/export-test/export").with(user(tester))))
                 .isInstanceOf(JsonProcessingException.class);
     }
 
@@ -154,7 +196,7 @@ class ReportExportIntegrationTest {
     void shouldRenderDownloadEntryInCurrentLanguage(String page, String language, String label) throws Exception {
         saveReport("[]");
 
-        String html = mvc.perform(get(page).param("lang", language)).andExpect(status().isOk())
+        String html = mvc.perform(get(page).param("lang", language).with(user(tester))).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         var links = Jsoup.parse(html).select("a[download][href^=/report/export-test/export]");
 
@@ -165,7 +207,7 @@ class ReportExportIntegrationTest {
                 language.equals("en") ? "Export Word" : "导出 Word");
         assertThat(html).doesNotContain("??report.export");
         for (var link : links) {
-            mvc.perform(get(link.attr("href"))).andExpect(status().isOk());
+            mvc.perform(get(link.attr("href")).with(user(tester))).andExpect(status().isOk());
         }
     }
 
@@ -175,7 +217,8 @@ class ReportExportIntegrationTest {
         saveReport(issues(new SeoAuditService.Issue("broken-link", SeoAuditService.Severity.ERROR,
                 "https://example.com/缺失", "404")));
 
-        var response = mvc.perform(get("/report/export-test/export").param("format", format).param("lang", "zh-CN"))
+        var response = mvc.perform(get("/report/export-test/export")
+                        .param("format", format).param("lang", "zh-CN").with(user(tester)))
                 .andExpect(status().isOk()).andReturn().getResponse();
 
         assertThat(response.getContentType()).isEqualTo(contentType);
@@ -189,11 +232,12 @@ class ReportExportIntegrationTest {
     void shouldRejectUnsupportedDocumentFormat(String format) throws Exception {
         saveReport("[]");
 
-        mvc.perform(get("/report/export-test/export").param("format", format)).andExpect(status().isBadRequest());
+        mvc.perform(get("/report/export-test/export").param("format", format).with(user(tester)))
+                .andExpect(status().isBadRequest());
     }
 
     private MockHttpServletResponse download(String language) throws Exception {
-        return mvc.perform(get("/report/export-test/export").param("lang", language))
+        return mvc.perform(get("/report/export-test/export").param("lang", language).with(user(tester)))
                 .andExpect(status().isOk()).andReturn().getResponse();
     }
 
@@ -212,6 +256,7 @@ class ReportExportIntegrationTest {
         report.setWarningCount(3);
         report.setInfoCount(4);
         report.setIssuesJson(json);
+        report.setUserId(tester.id());
         report.setCreatedAt(LocalDateTime.of(2026, 9, 18, 20, 30, 15));
         return repository.saveAndFlush(report);
     }

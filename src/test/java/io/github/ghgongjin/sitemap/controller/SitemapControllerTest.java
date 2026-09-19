@@ -1,6 +1,7 @@
 package io.github.ghgongjin.sitemap.controller;
 
 import io.github.ghgongjin.sitemap.entity.SeoReport;
+import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.CrawlProgressService;
 import io.github.ghgongjin.sitemap.service.EnhancedSitemapGeneratorService;
 import io.github.ghgongjin.sitemap.service.SeoAuditService;
@@ -17,6 +18,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -56,6 +59,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class SitemapControllerTest {
 
+    private static final Long USER_ID = 42L;
     private static final String URL = "https://original.example/site";
     private static final String OTHER_URL = "https://unrelated.example/other";
     private static final String XML = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset><url><loc>"
@@ -111,6 +115,10 @@ class SitemapControllerTest {
 
     @BeforeEach
     void setUp() {
+        // 控制器在请求线程读取归属用户，standalone 场景需手工装配登录态
+        UserAccountDetails details = new UserAccountDetails(USER_ID, "tester", "");
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                details, "", details.getAuthorities()));
         generator = mock(SitemapGeneratorService.class);
         enhanced = mock(EnhancedSitemapGeneratorService.class);
         progress = new CrawlProgressService(mock(SimpMessagingTemplate.class));
@@ -142,6 +150,7 @@ class SitemapControllerTest {
     @AfterEach
     void tearDown() {
         controller.shutdown();
+        SecurityContextHolder.clearContext();
     }
 
     @ParameterizedTest
@@ -434,13 +443,25 @@ class SitemapControllerTest {
         String taskId = completeAsyncTask(true, false);
 
         // Then: the audit summary is written through the report service by the crawl thread.
-        verify(seoReport, timeout(5000)).save(taskId, URL);
+        verify(seoReport, timeout(5000)).save(taskId, URL, USER_ID);
+    }
+
+    @Test
+    void shouldPersistReportWithoutOwnerWhenGuestCrawls() throws Exception {
+        // Given: 游客提交爬取，请求线程没有登录态
+        SecurityContextHolder.clearContext();
+
+        // When
+        String taskId = completeAsyncTask(false, false);
+
+        // Then: 归属为 null，报告不会被错绑到任何用户
+        verify(seoReport, timeout(5000)).save(taskId, URL, null);
     }
 
     @Test
     void shouldReturn404WhenSeoReportMissing() throws Exception {
         // Given
-        when(seoReport.findByTaskId("missing-task")).thenReturn(Optional.empty());
+        when(seoReport.findOwned("missing-task", USER_ID)).thenReturn(Optional.empty());
 
         // When / Then
         mvc.perform(get("/report/missing-task")).andExpect(status().isNotFound());
@@ -449,7 +470,7 @@ class SitemapControllerTest {
     @Test
     void shouldRenderSeoReportWhenReportStored() throws Exception {
         // Given: a persisted report whose issue list is stored as JSON.
-        when(seoReport.findByTaskId("task-report")).thenReturn(Optional.of(report(70, 2, 1, 1, 0, 0)));
+        when(seoReport.findOwned("task-report", USER_ID)).thenReturn(Optional.of(report(70, 2, 1, 1, 0, 0)));
         when(seoReport.parseIssues(anyString())).thenReturn(List.of(
                 new SeoAuditService.Issue("broken-link", SeoAuditService.Severity.ERROR, URL + "/missing", "404"),
                 new SeoAuditService.Issue("missing-title", SeoAuditService.Severity.WARNING, URL, "")));
@@ -472,7 +493,7 @@ class SitemapControllerTest {
     @Test
     void shouldRenderCleanStateWhenReportHasNoIssues() throws Exception {
         // Given
-        when(seoReport.findByTaskId("task-clean")).thenReturn(Optional.of(report(100, 3, 0, 0, 0, 0)));
+        when(seoReport.findOwned("task-clean", USER_ID)).thenReturn(Optional.of(report(100, 3, 0, 0, 0, 0)));
         when(seoReport.parseIssues(anyString())).thenReturn(List.of());
 
         // When
@@ -488,7 +509,7 @@ class SitemapControllerTest {
     @Test
     void shouldRenderReportListWhenReportsStored() throws Exception {
         // Given
-        when(seoReport.recent()).thenReturn(List.of(
+        when(seoReport.recent(USER_ID)).thenReturn(List.of(
                 report(70, 2, 1, 1, 0, 0),
                 report(100, 5, 0, 0, 0, 0)));
 
@@ -505,7 +526,7 @@ class SitemapControllerTest {
     @Test
     void shouldRenderEmptyStateWhenNoReportsStored() throws Exception {
         // Given
-        when(seoReport.recent()).thenReturn(List.of());
+        when(seoReport.recent(USER_ID)).thenReturn(List.of());
 
         // When
         Document page = render(get("/reports"));

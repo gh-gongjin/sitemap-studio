@@ -68,7 +68,9 @@ public class AutoSiteUpdater {
 
     private void saveSeoReport(String taskId, String url) {
         try {
-            seoReportService.save(taskId, url);
+            // 自动更新由调度线程执行，不属于任何请求用户，报告暂无归属；
+            // Task 4 给 AutoSite 补 user_id 后改传站点归属用户
+            seoReportService.save(taskId, url, null);
         } catch (Exception e) {
             log.warn("自动更新 SEO 报告保存失败：taskId={}, {}", taskId, e.getMessage());
         }

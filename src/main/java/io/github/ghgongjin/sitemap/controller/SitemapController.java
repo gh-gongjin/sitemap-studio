@@ -8,6 +8,7 @@ import io.github.ghgongjin.sitemap.service.EnhancedSitemapGeneratorService;
 import io.github.ghgongjin.sitemap.service.SeoReportService;
 import io.github.ghgongjin.sitemap.service.SitemapEntryParser;
 import io.github.ghgongjin.sitemap.service.SitemapGeneratorService;
+import io.github.ghgongjin.sitemap.security.SecurityUtils;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -143,10 +144,12 @@ public class SitemapController {
             
             progressService.startTask(taskId, url, includeImages, includeVideos, includeNews);
             
+            // 归属用户在请求线程内捕获：爬取线程池不会继承 SecurityContext，异步线程再取会是 null
+            final Long ownerUserId = SecurityUtils.currentUserId();
             crawlExecutor.submit(() -> {
                 try {
                     enhancedService.generateSitemapWithProgress(url, includeImages, includeVideos, includeNews, taskId);
-                    seoReportService.save(taskId, url);
+                    seoReportService.save(taskId, url, ownerUserId);
                 } catch (Exception e) {
                     log.error("异步爬取失败：{}", e.getMessage(), e);
                     progressService.failTask(taskId, e.getMessage());
@@ -338,14 +341,12 @@ public class SitemapController {
     }
 
     /**
-     * SEO 健康报告
+     * SEO 健康报告（仅归属用户可见；越权与不存在统一 404，不透露报告是否存在）
      */
     @GetMapping("/report/{taskId}")
     public String seoReport(@PathVariable String taskId, Model model) {
-        SeoReport report = seoReportService.findByTaskId(taskId).orElse(null);
-        if (report == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
+        SeoReport report = seoReportService.findOwned(taskId, SecurityUtils.currentUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         model.addAttribute("report", report);
         model.addAttribute("issues", seoReportService.parseIssues(report.getIssuesJson()));
         return "report";
@@ -356,7 +357,7 @@ public class SitemapController {
                                                   @RequestParam(required = false) String format,
                                                   Locale locale)
             throws Exception {
-        SeoReport report = seoReportService.findByTaskId(taskId)
+        SeoReport report = seoReportService.findOwned(taskId, SecurityUtils.currentUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         String fmt = (format == null) ? "csv" : format.toLowerCase(Locale.ROOT);
         String safeName = "seo-report-" + report.getTaskId().replaceAll("[^a-zA-Z0-9_-]", "_");
@@ -398,11 +399,11 @@ public class SitemapController {
     }
 
     /**
-     * 历史 SEO 报告列表
+     * 历史 SEO 报告列表（仅列出本人归属的报告）
      */
     @GetMapping("/reports")
     public String seoReports(Model model) {
-        model.addAttribute("reports", seoReportService.recent());
+        model.addAttribute("reports", seoReportService.recent(SecurityUtils.currentUserId()));
         return "reports";
     }
 

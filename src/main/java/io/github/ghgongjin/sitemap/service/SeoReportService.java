@@ -32,7 +32,7 @@ import java.util.Optional;
 
 /**
  * @ClassName SeoReportService
- * @Description SEO 报告落库与读取（爬取完成后把内存审计结果写入 H2）
+ * @Description SEO 报告落库与读取（爬取完成后把内存审计结果写入 H2，并按归属用户隔离读取）
  * @Author gj
  * @Date 2026/9/18
  * @Version 1.0
@@ -49,10 +49,12 @@ public class SeoReportService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 把任务的内存审计结果持久化；无审计数据时返回 null
+     * 把任务的内存审计结果持久化并记录归属用户；无审计数据时返回 null
+     *
+     * @param userId 报告归属用户；游客爬取传 null（数据保留但对任何登录用户不可见）
      */
     @Transactional
-    public SeoReport save(String taskId, String siteUrl) {
+    public SeoReport save(String taskId, String siteUrl, Long userId) {
         if (taskId == null || !seoAuditService.hasAudit(taskId)) {
             return null;
         }
@@ -60,6 +62,7 @@ public class SeoReportService {
         SeoReport report = seoReportRepository.findByTaskId(taskId).orElseGet(SeoReport::new);
         report.setTaskId(taskId);
         report.setSiteUrl(siteUrl);
+        report.setUserId(userId);
         report.setScore(summary.score());
         report.setPagesAudited(summary.pagesAudited());
         report.setBrokenLinks(summary.brokenLinks());
@@ -70,7 +73,8 @@ public class SeoReportService {
         report.setIssuesJson(writeIssues(summary.issues()));
         report.setCreatedAt(LocalDateTime.now());
         SeoReport saved = seoReportRepository.save(report);
-        log.info("SEO 报告已保存：taskId={}, 评分={}, 问题数={}", taskId, summary.score(), summary.issues().size());
+        log.info("SEO 报告已保存：taskId={}, userId={}, 评分={}, 问题数={}",
+                taskId, userId, summary.score(), summary.issues().size());
         return saved;
     }
 
@@ -79,14 +83,26 @@ public class SeoReportService {
         return taskId == null ? Optional.empty() : seoReportRepository.findByTaskId(taskId);
     }
 
+    /**
+     * 仅取归属当前用户的报告；任务或用户任一为空时返回 empty（越权与不存在统一按 404 处理）
+     */
+    @Transactional(readOnly = true)
+    public Optional<SeoReport> findOwned(String taskId, Long userId) {
+        if (taskId == null || userId == null) {
+            return Optional.empty();
+        }
+        return seoReportRepository.findByTaskIdAndUserId(taskId, userId);
+    }
+
     @Transactional(readOnly = true)
     public boolean hasReport(String taskId) {
         return findByTaskId(taskId).isPresent();
     }
 
     @Transactional(readOnly = true)
-    public List<SeoReport> recent() {
-        return seoReportRepository.findTop20ByOrderByCreatedAtDesc();
+    public List<SeoReport> recent(Long userId) {
+        return userId == null ? List.of()
+                : seoReportRepository.findTop20ByUserIdOrderByCreatedAtDesc(userId);
     }
 
     public List<SeoAuditService.Issue> parseIssues(String issuesJson) {

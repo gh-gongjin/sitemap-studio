@@ -15,7 +15,12 @@ import java.util.Optional;
  */
 public interface SeoReportRepository extends JpaRepository<SeoReport, Long> {
 
+    /**
+     * 保留：仅供预览页 reportAvailable 按钮显隐探测，越权拦截由各报告端点的归属校验负责
+     */
     Optional<SeoReport> findByTaskId(String taskId);
 
-    List<SeoReport> findTop20ByOrderByCreatedAtDesc();
+    Optional<SeoReport> findByTaskIdAndUserId(String taskId, Long userId);
+
+    List<SeoReport> findTop20ByUserIdOrderByCreatedAtDesc(Long userId);
 }

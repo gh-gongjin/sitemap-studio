@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 
 /**
  * @ClassName SeoReport
- * @Description SEO 健康报告（按任务持久化，问题清单以 JSON 存储）
+ * @Description SEO 健康报告（按任务持久化并记录归属用户，问题清单以 JSON 存储）
  * @Author gj
  * @Date 2026/9/18
  * @Version 1.0
@@ -29,6 +29,12 @@ public class SeoReport {
 
     @Column(name = "task_id", nullable = false, unique = true, length = 64)
     private String taskId;
+
+    /**
+     * 报告归属用户；游客爬取与历史存量数据为 null（对任何登录用户均不可见）
+     */
+    @Column(name = "user_id")
+    private Long userId;
 
     @Column(name = "site_url", nullable = false, length = 2048)
     private String siteUrl;

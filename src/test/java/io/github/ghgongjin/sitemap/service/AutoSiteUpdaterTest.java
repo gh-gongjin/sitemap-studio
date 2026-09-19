@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -80,7 +81,7 @@ class AutoSiteUpdaterTest {
         // Then
         ArgumentCaptor<String> taskId = ArgumentCaptor.forClass(String.class);
         verify(autoSiteService).recordSuccess(eq(1L), taskId.capture(), anyString(), anyInt());
-        verify(seoReportService).save(eq(taskId.getValue()), eq(SITE));
+        verify(seoReportService).save(eq(taskId.getValue()), eq(SITE), isNull());
     }
 
     @Test
@@ -106,7 +107,7 @@ class AutoSiteUpdaterTest {
         when(enhancedService.generateSitemapWithProgress(anyString(), anyBoolean(), anyBoolean(), anyBoolean(),
                 anyString())).thenReturn(XML);
         when(progressService.getTaskResult(anyString())).thenReturn(result(5));
-        doThrow(new RuntimeException("db down")).when(seoReportService).save(anyString(), anyString());
+        doThrow(new RuntimeException("db down")).when(seoReportService).save(anyString(), anyString(), isNull());
 
         // When
         boolean updated = updater.update(site);
