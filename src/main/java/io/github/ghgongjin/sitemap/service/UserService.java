@@ -4,6 +4,7 @@ import io.github.ghgongjin.sitemap.entity.UserAccount;
 import io.github.ghgongjin.sitemap.repository.UserAccountRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -53,7 +54,16 @@ public class UserService implements UserDetailsService {
         account.setUsername(name);
         account.setPasswordHash(passwordEncoder.encode(rawPassword));
         account.setCreatedAt(LocalDateTime.now());
-        UserAccount saved = userAccountRepository.save(account);
+        UserAccount saved;
+        try {
+            saved = userAccountRepository.save(account);
+        } catch (DataIntegrityViolationException e) {
+            // existsByUsername 与 save 之间非原子：并发/双击同名提交时唯一索引冲突在此归一为
+            // USERNAME_TAKEN，避免原始异常越过控制器变成 whitelabel 500
+            throw new RegistrationException(RegistrationException.Reason.USERNAME_TAKEN);
+        }
+        // IDENTITY 主键策略下 save() 会立即执行 INSERT，能走到这里说明行已写入数据库；
+        // 事务提交阶段仍有极小概率失败（如连接中断），接受该残余风险，不额外引入 afterCommit 回调
         log.info("新用户注册成功：{}", name);
         return saved;
     }
