@@ -45,13 +45,21 @@ public class NotificationService {
     @EventListener
     @Async("notifyExecutor")
     public void onSiteUpdated(SiteUpdatedEvent event) {
-        handleUpdated(event);
+        try {
+            handleUpdated(event);
+        } catch (Exception e) {
+            log.warn("更新通知处理异常：siteId={}，{}", event == null ? null : event.siteId(), e.getMessage());
+        }
     }
 
     @EventListener
     @Async("notifyExecutor")
     public void onSiteFailed(SiteFailedEvent event) {
-        handleFailed(event);
+        try {
+            handleFailed(event);
+        } catch (Exception e) {
+            log.warn("失败通知处理异常：siteId={}，{}", event == null ? null : event.siteId(), e.getMessage());
+        }
     }
 
     void handleUpdated(SiteUpdatedEvent event) {

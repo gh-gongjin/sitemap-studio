@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -230,5 +231,14 @@ class NotificationServiceTest {
                 seoReportRepository, List.of(broken, webhook), props);
         mixed.handleUpdated(changed(1, 0, 0, null, 2, false));
         assertThat(webhook.sent).hasSize(1);   // 一个通道炸不影响另一个
+    }
+
+    @Test
+    void listenerShouldNotRethrowWhenRepositoryFails() {
+        when(siteRepository.findById(1L)).thenThrow(new IllegalStateException("db down"));
+        assertThatCode(() -> service.onSiteUpdated(changed(1, 0, 0, null, 2, false)))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> service.onSiteFailed(new SiteFailedEvent(1L, 1, "boom")))
+                .doesNotThrowAnyException();
     }
 }
