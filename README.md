@@ -81,9 +81,9 @@ global Maven configuration.
 
 ## Usage Limits & Caveats
 
-- Only publicly accessible HTTP(S) sites can be crawled; internal, loopback, and `file://` targets are refused. Respect target-site rules and only crawl content you are authorized to access.
-- A single task crawls at most 500 pages; completeness is not guaranteed and results depend on network, site access restrictions, and link structure.
-- In-flight crawl tasks live in memory and expire; results are persisted only as reports once completed.
+- Only publicly accessible HTTP(S) sites can be crawled; internal, loopback, and `file://` targets are refused, and `robots.txt` is honored. Respect target-site rules and only crawl content you are authorized to access.
+- A single task crawls at most **1000 URLs** to a depth of 10; completeness is not guaranteed and results depend on network, site access restrictions, and link structure.
+- Crawl results (preview / sitemap.xml download) live in memory for **30 minutes**; SEO reports are persisted to the local H2 database on completion and can be revisited or exported (CSV / PDF / Word) at any time, as can auto-update site versions.
 
 ## License
 
@@ -142,9 +142,9 @@ mvn verify  # 含测试与打包的完整构建
 
 ## 使用范围与限制
 
-- 仅支持抓取公开可访问的 HTTP(S) 站点，内网、回环地址与本机文件会被拒绝；请遵守目标站点规则，仅抓取有权访问的内容。
-- 单次任务页面上限 500，不保证收录站点全部页面；结果受网络、站点访问限制与链接结构影响。
-- 进行中的爬取任务保存在内存并会过期，任务结果仅在完成后以报告形式持久化。
+- 仅支持抓取公开可访问的 HTTP(S) 站点，内网、回环地址与本机文件会被拒绝，并遵循目标站点的 `robots.txt`；请遵守目标站点规则，仅抓取有权访问的内容。
+- 单次任务最多抓取 **1000 个 URL**、深度不超过 10 层；结果受网络、站点访问限制与链接结构影响，不保证收录全部页面。
+- 爬取结果（预览 / sitemap.xml 下载）在内存中保留 **30 分钟**；SEO 报告在任务完成后持久化到本地 H2 数据库，可随时回看与导出（CSV / PDF / Word），自动更新站点版本同样持久化。
 
 ## 许可证
 
