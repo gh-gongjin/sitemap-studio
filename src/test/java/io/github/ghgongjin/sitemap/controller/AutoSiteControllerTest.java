@@ -1,11 +1,15 @@
 package io.github.ghgongjin.sitemap.controller;
 
+import io.github.ghgongjin.sitemap.config.NotifyProperties;
 import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.entity.PushLog;
 import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
+import io.github.ghgongjin.sitemap.service.notify.NotificationService;
+import io.github.ghgongjin.sitemap.service.notify.NotifySettingsService;
+import io.github.ghgongjin.sitemap.service.notify.NotifyTestLimiter;
 import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushConfigView;
 import io.github.ghgongjin.sitemap.service.push.PushErrorCode;
@@ -88,8 +92,9 @@ class AutoSiteControllerTest {
         autoSiteService = mock(AutoSiteService.class);
         pushConfigService = mock(PushConfigService.class);
         sitemapPushService = mock(SitemapPushService.class);
-        AutoSiteController controller =
-                new AutoSiteController(autoSiteService, pushConfigService, sitemapPushService);
+        AutoSiteController controller = new AutoSiteController(autoSiteService, pushConfigService,
+                sitemapPushService, mock(NotifySettingsService.class), mock(NotificationService.class),
+                mock(NotifyTestLimiter.class), new NotifyProperties());
 
         mvc = mockMvc(controller, Locale.SIMPLIFIED_CHINESE);
         mvcEn = mockMvc(controller, Locale.ENGLISH);

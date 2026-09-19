@@ -1,5 +1,6 @@
 package io.github.ghgongjin.sitemap.controller;
 
+import io.github.ghgongjin.sitemap.config.NotifyProperties;
 import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.security.SecurityUtils;
@@ -7,6 +8,11 @@ import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
 import io.github.ghgongjin.sitemap.service.Csv;
 import io.github.ghgongjin.sitemap.service.SiteDiffEngine;
+import io.github.ghgongjin.sitemap.service.notify.NotificationService;
+import io.github.ghgongjin.sitemap.service.notify.NotifyOutcome;
+import io.github.ghgongjin.sitemap.service.notify.NotifySettings;
+import io.github.ghgongjin.sitemap.service.notify.NotifySettingsService;
+import io.github.ghgongjin.sitemap.service.notify.NotifyTestLimiter;
 import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.PushSettings;
@@ -49,6 +55,10 @@ public class AutoSiteController {
     private final AutoSiteService autoSiteService;
     private final PushConfigService pushConfigService;
     private final SitemapPushService sitemapPushService;
+    private final NotifySettingsService notifySettingsService;
+    private final NotificationService notificationService;
+    private final NotifyTestLimiter notifyTestLimiter;
+    private final NotifyProperties notifyProperties;
 
     @GetMapping
     public String list(Model model) {
@@ -143,6 +153,38 @@ public class AutoSiteController {
                 () -> sitemapPushService.push(id));
     }
 
+    @PostMapping("/{id}/notify/settings")
+    public String saveNotifySettings(@PathVariable Long id,
+                                     @RequestParam(value = "notifyOnChange", defaultValue = "false") boolean notifyOnChange,
+                                     @RequestParam(value = "notifyOnFailure", defaultValue = "false") boolean notifyOnFailure,
+                                     @RequestParam(value = "webhookUrl", defaultValue = "") String webhookUrl,
+                                     @RequestParam(value = "webhookSecret", defaultValue = "") String webhookSecret,
+                                     @RequestParam(value = "email", defaultValue = "") String email,
+                                     @RequestParam(value = "seoErrorThreshold", defaultValue = "-1") int seoErrorThreshold,
+                                     RedirectAttributes redirect) {
+        requireOwned(id, SecurityUtils.currentUserId());
+        NotifySettings settings = new NotifySettings(notifyOnChange, notifyOnFailure,
+                webhookUrl, webhookSecret, email, seoErrorThreshold);
+        return mutate(redirect, "auto.notify.flash.saved", detailPath(id),
+                () -> notifySettingsService.save(id, SecurityUtils.currentUserId(), settings));
+    }
+
+    @PostMapping("/{id}/notify/test")
+    public String testNotify(@PathVariable Long id, RedirectAttributes redirect) {
+        requireOwned(id, SecurityUtils.currentUserId());
+        if (!notifyTestLimiter.allow(id)) {
+            redirect.addFlashAttribute("flashError", "auto.notify.flash.rateLimited");
+            return "redirect:" + detailPath(id);
+        }
+        NotifyOutcome outcome = notificationService.test(id);
+        if (outcome.success()) {
+            redirect.addFlashAttribute("flash", outcome.messageKey());
+        } else {
+            redirect.addFlashAttribute("flashError", outcome.messageKey());
+        }
+        return "redirect:" + detailPath(id);
+    }
+
     @GetMapping("/{id}")
     public String detail(@PathVariable Long id, Model model) {
         Long userId = SecurityUtils.currentUserId();
@@ -151,6 +193,8 @@ public class AutoSiteController {
         model.addAttribute("versions", autoSiteService.versions(id));
         model.addAttribute("pushConfig", pushConfigService.view(id).orElse(null));
         model.addAttribute("pushLogs", pushConfigService.logs(id));
+        model.addAttribute("notify", notifySettingsService.view(id).orElse(null));
+        model.addAttribute("notifyPrivateAllowed", notifyProperties.isAllowPrivateNetwork());
         return "auto-detail";
     }
 
