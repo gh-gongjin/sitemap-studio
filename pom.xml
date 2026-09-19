@@ -46,6 +46,11 @@
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- SockJS 支持（Spring Boot 2.7+ 需要显式添加） -->
         <dependency>
             <groupId>org.webjars</groupId>
