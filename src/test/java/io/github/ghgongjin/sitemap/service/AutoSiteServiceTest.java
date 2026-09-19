@@ -375,6 +375,77 @@ class AutoSiteServiceTest {
     }
 
     @Test
+    void shouldStoreDiffCountsOnSecondVersionWhenSuccess() {
+        // Given
+        AutoSite site = site(1L, 24);
+        AutoSiteVersion previous = new AutoSiteVersion();
+        previous.setVersionNumber(1);
+        previous.setSitemapXml("<urlset><url><loc>https://a/x</loc><lastmod>2026-01-01</lastmod>"
+                + "<url><loc>https://a/gone</loc><lastmod>2026-01-01</lastmod></url></urlset>");
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(site));
+        when(versionRepository.findTopBySiteIdOrderByVersionNumberDesc(1L)).thenReturn(Optional.of(previous));
+        when(versionRepository.findBySiteIdOrderByVersionNumberDesc(1L)).thenReturn(List.of(previous));
+
+        // When
+        service.recordSuccess(1L, "task-2",
+                "<urlset><url><loc>https://a/x</loc><lastmod>2026-02-02</lastmod>"
+                        + "<url><loc>https://a/new</loc><lastmod>2026-02-02</lastmod></url></urlset>", 2);
+
+        // Then：x 改、new 增、gone 删
+        ArgumentCaptor<AutoSiteVersion> captor = ArgumentCaptor.forClass(AutoSiteVersion.class);
+        verify(versionRepository).save(captor.capture());
+        assertThat(captor.getValue().getDiffAdded()).isEqualTo(1);
+        assertThat(captor.getValue().getDiffRemoved()).isEqualTo(1);
+        assertThat(captor.getValue().getDiffChanged()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldZeroCountsAndStillSaveVersionWhenDiffFailsOnCorruptedPrevious() {
+        // Given：上一版 sitemapXml 为 null（模拟损坏/缺失历史）
+        AutoSite site = site(1L, 24);
+        AutoSiteVersion previous = new AutoSiteVersion();
+        previous.setVersionNumber(1);
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(site));
+        when(versionRepository.findTopBySiteIdOrderByVersionNumberDesc(1L)).thenReturn(Optional.of(previous));
+        when(versionRepository.findBySiteIdOrderByVersionNumberDesc(1L)).thenReturn(List.of(previous));
+
+        // When
+        AutoSite updated = service.recordSuccess(1L, "task-2", XML, 5);
+
+        // Then：版本照常保存，计数 0/0/0
+        ArgumentCaptor<AutoSiteVersion> captor = ArgumentCaptor.forClass(AutoSiteVersion.class);
+        verify(versionRepository).save(captor.capture());
+        assertThat(captor.getValue().getDiffAdded()).isZero();
+        assertThat(captor.getValue().getDiffRemoved()).isZero();
+        assertThat(captor.getValue().getDiffChanged()).isZero();
+        assertThat(updated.getLastStatus()).isEqualTo(AutoSiteService.STATUS_SUCCESS);
+    }
+
+    @Test
+    void shouldResetConsecutiveFailuresOnSuccess() {
+        AutoSite site = site(1L, 24);
+        site.setConsecutiveFailures(4);
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(site));
+        when(versionRepository.findTopBySiteIdOrderByVersionNumberDesc(1L)).thenReturn(Optional.empty());
+        when(versionRepository.findBySiteIdOrderByVersionNumberDesc(1L)).thenReturn(List.of());
+
+        AutoSite updated = service.recordSuccess(1L, "task-1", XML, 1);
+
+        assertThat(updated.getConsecutiveFailures()).isZero();
+    }
+
+    @Test
+    void shouldIncrementConsecutiveFailuresOnFailure() {
+        AutoSite site = site(1L, 24);
+        site.setConsecutiveFailures(2);
+        when(siteRepository.findById(1L)).thenReturn(Optional.of(site));
+
+        AutoSite updated = service.recordFailure(1L, "连接超时");
+
+        assertThat(updated.getConsecutiveFailures()).isEqualTo(3);
+    }
+
+    @Test
     void shouldTrimOldVersionsWhenExceedKeepLimit() {
         // Given
         AutoSite site = site(1L, 24);
