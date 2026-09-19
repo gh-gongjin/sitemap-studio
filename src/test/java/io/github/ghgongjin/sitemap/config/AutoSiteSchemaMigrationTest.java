@@ -2,7 +2,10 @@ package io.github.ghgongjin.sitemap.config;
 
 import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.repository.AutoSiteRepository;
+import io.github.ghgongjin.sitemap.repository.AutoSiteVersionRepository;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
+import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
+import io.github.ghgongjin.sitemap.service.CrawlUrlPolicy;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -14,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import javax.sql.DataSource;
+import java.net.URI;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -53,6 +57,9 @@ class AutoSiteSchemaMigrationTest {
     private AutoSiteRepository siteRepository;
 
     @Autowired
+    private AutoSiteVersionRepository versionRepository;
+
+    @Autowired
     private JdbcTemplate jdbc;
 
     @Test
@@ -72,6 +79,26 @@ class AutoSiteSchemaMigrationTest {
         AutoSite first = siteRepository.saveAndFlush(site(1L, "https://dup-a.example.com"));
         AutoSite second = siteRepository.saveAndFlush(site(2L, "https://dup-a.example.com"));
         assertThat(second.getId()).isNotNull().isNotEqualTo(first.getId());
+    }
+
+    @Test
+    void shouldMapLegacyGlobalUniqueToValidationWhenMigrationDegraded() {
+        // Given: 模拟迁移被降级为告警、旧全局 UNIQUE(site_url) 残留的运行期缺口——
+        //        联合唯一没建、旧约束还在，用户 A 已托管该 URL
+        jdbc.execute("ALTER TABLE auto_site ADD CONSTRAINT UK_LEGACY_E UNIQUE (site_url)");
+        AutoSiteService service = new AutoSiteService(siteRepository, versionRepository);
+        service.setCrawlUrlPolicy(publicHostPolicy());
+        service.create(1L, "https://residual.example.com", false, false, false, 24);
+
+        // When & Then: 用户 B 添加同一 URL——existsByUserIdAndUrl 按 (用户,URL) 判不出冲突，
+        //              save 在库层撞残留全局唯一，应归一为 AutoSiteValidationException(duplicate)
+        //              而非 DataIntegrityViolationException 裸冒到 whitelabel 500
+        assertThatThrownBy(() -> service.create(2L, "https://residual.example.com", false, false, false, 24))
+                .isNotInstanceOf(DataIntegrityViolationException.class)
+                .isInstanceOfSatisfying(AutoSiteValidationException.class, error -> {
+                    assertThat(error.messageKey()).isEqualTo("auto.error.duplicate");
+                    assertThat(error.args()).containsExactly("https://residual.example.com");
+                });
     }
 
     @Test
@@ -190,6 +217,26 @@ class AutoSiteSchemaMigrationTest {
         public void execute(String sql) throws DataAccessException {
             attempts++;
             throw new BadSqlGrammarException("execute", sql, new SQLException("模拟 DDL 失败"));
+        }
+    }
+
+    /**
+     * 放行任意主机的策略桩：只保留 URL 解析，不做真实 DNS，便于跨包构造 AutoSiteService
+     */
+    private CrawlUrlPolicy publicHostPolicy() {
+        return new AnyHostPolicy();
+    }
+
+    private static class AnyHostPolicy extends CrawlUrlPolicy {
+
+        @Override
+        public URI validate(String url) {
+            return URI.create(url.trim());
+        }
+
+        @Override
+        public URI validate(String url, String scopeBase) {
+            return validate(url);
         }
     }
 

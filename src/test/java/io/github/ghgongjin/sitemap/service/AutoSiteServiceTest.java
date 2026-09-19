@@ -258,8 +258,10 @@ class AutoSiteServiceTest {
 
         // When & Then: 越权与不存在归一，且不产生任何写入
         assertThatThrownBy(() -> service.runNow(1L, OWNER))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("不存在");
+                .isInstanceOfSatisfying(AutoSiteValidationException.class, error -> {
+                    assertThat(error.messageKey()).isEqualTo("auto.error.notFound");
+                    assertThat(error.args()).containsExactly(1L);
+                });
         verify(siteRepository, never()).save(any(AutoSite.class));
     }
 
@@ -304,8 +306,8 @@ class AutoSiteServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> service.setEnabled(1L, false, OWNER))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("不存在");
+                .isInstanceOfSatisfying(AutoSiteValidationException.class, error ->
+                        assertThat(error.messageKey()).isEqualTo("auto.error.notFound"));
         verify(siteRepository, never()).save(any(AutoSite.class));
     }
 
@@ -461,8 +463,8 @@ class AutoSiteServiceTest {
 
         // When & Then: 越权删除被拒，站点与版本都还在
         assertThatThrownBy(() -> service.delete(1L, OWNER))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("不存在");
+                .isInstanceOfSatisfying(AutoSiteValidationException.class, error ->
+                        assertThat(error.messageKey()).isEqualTo("auto.error.notFound"));
         verify(siteRepository, never()).delete(any(AutoSite.class));
         verify(versionRepository, never()).deleteBySiteId(any());
     }
@@ -474,8 +476,8 @@ class AutoSiteServiceTest {
 
         // When & Then
         assertThatThrownBy(() -> service.runNow(9L, OWNER))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("不存在");
+                .isInstanceOfSatisfying(AutoSiteValidationException.class, error ->
+                        assertThat(error.messageKey()).isEqualTo("auto.error.notFound"));
     }
 
     @Test

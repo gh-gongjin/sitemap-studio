@@ -6,6 +6,7 @@ import io.github.ghgongjin.sitemap.repository.AutoSiteRepository;
 import io.github.ghgongjin.sitemap.repository.AutoSiteVersionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,7 +80,16 @@ public class AutoSiteService {
         site.setLastStatus(STATUS_PENDING);
         site.setCreatedAt(now);
         site.setUpdatedAt(now);
-        AutoSite saved = siteRepository.save(site);
+        AutoSite saved;
+        try {
+            saved = siteRepository.save(site);
+        } catch (DataAccessException e) {
+            // 唯一约束迁移若被降级（旧全局 UNIQUE(site_url) 残留、联合唯一未建），
+            // existsByUserIdAndUrl 按 (用户, URL) 判重查不出「他人已托管同一 URL」的冲突，
+            // save 时才在库层撞唯一约束。此路径唯一现实成因即为该冲突，归一为 duplicate 提示走
+            // flashError，避免 DataIntegrityViolationException 越过控制器变 whitelabel 500
+            throw new AutoSiteValidationException("auto.error.duplicate", normalized);
+        }
         log.info("自动更新站点已注册：{}（用户 {}，每 {} 小时）", normalized, userId, intervalHours);
         return saved;
     }
@@ -228,16 +238,18 @@ public class AutoSiteService {
 
     private AutoSite requireSite(Long id) {
         return siteRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("自动更新站点不存在：" + id));
+                .orElseThrow(() -> new AutoSiteValidationException("auto.error.notFound", id));
     }
 
     /**
      * 写路径的归属校验：不存在与不属于该用户同样归一为「站点不存在」，
-     * 由控制器统一按 404 透出（不区分不存在与无权限）
+     * 由控制器统一按 404 透出（不区分不存在与无权限）。
+     * 提示以 message key 抛出：控制器 requireOwned 与本服务 requireOwned 之间存在并发删除的
+     * TOCTOU 窗口，落到 mutate 的 flashError 时须是本地化 key 而非硬编码中文
      */
     private AutoSite requireOwned(Long id, Long userId) {
         return findOwned(id, userId)
-                .orElseThrow(() -> new IllegalArgumentException("自动更新站点不存在：" + id));
+                .orElseThrow(() -> new AutoSiteValidationException("auto.error.notFound", id));
     }
 
     private int nextVersionNumber(Long siteId) {
