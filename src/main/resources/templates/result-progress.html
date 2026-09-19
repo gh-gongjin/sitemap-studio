@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.progress}">Sitemap Studio · 抓取进度</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='progress', langZh=@{/task/{id}(id=${taskId}, lang='zh-CN')}, langEn=@{/task/{id}(id=${taskId}, lang='en')})}"></header>
+
+<main class="rise">
+  <div id="crawlView">
+    <div class="crawl-head">
+      <span class="tag tag-live"><span class="pulse"></span><span th:text="#{progress.tag}">抓取中</span></span>
+      <h2 th:text="#{progress.title}">正在扫描站点</h2>
+      <div class="meta-chips">
+        <span class="mchip"><i th:text="#{progress.site}">网站</i><b class="mono" th:text="${url}"></b></span>
+        <span class="mchip"><i th:text="#{progress.task}">任务</i><b class="mono" th:text="${taskId}"></b></span>
+      </div>
+    </div>
+    <div class="crawl-grid">
+      <div class="panel">
+        <div class="prog-top">
+          <div class="prog-status"><span class="spin"></span><span id="statusText" th:text="#{progress.connecting}">正在连接并发现页面…</span></div>
+          <b class="prog-pct" id="pct">0%</b>
+        </div>
+        <div class="bar"><i id="bar"></i></div>
+        <div class="now"><span class="mono" id="nowUrl"></span></div>
+        <div class="meters">
+          <div class="meter"><b id="mProcessed">0</b><span th:text="#{progress.m.processed}">已处理</span></div>
+          <div class="meter"><b id="mLimit" th:text="${maxPages}">1000</b><span th:text="#{progress.m.limit}">上限</span></div>
+          <div class="meter"><b id="mTime">0s</b><span th:text="#{progress.m.time}">用时</span></div>
+          <div class="meter"><b id="mState" th:text="#{progress.state.running}">抓取中</b><span th:text="#{progress.m.state}">状态</span></div>
+        </div>
+        <p class="note" th:text="#{progress.note}">抓取在后台任务中执行，离开本页不会中断任务。</p>
+      </div>
+      <div class="panel feed-panel">
+        <div class="feed-head">
+          <h3 th:text="#{progress.feed.title}">最近抓取</h3>
+          <span class="tag tag-ok"><span class="dot-ok"></span><span th:text="#{progress.feed.live}">实时</span></span>
+        </div>
+        <div class="feed" id="feed">
+          <p class="feed-empty" id="feedEmpty" th:text="#{progress.feed.empty}">等待第一个 URL…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="failView" class="hide">
+    <div class="panel fail-card">
+      <div class="fail-ico">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+          <path d="M12 9v4M12 17h.01"/>
+        </svg>
+      </div>
+      <span class="tag tag-bad" th:text="#{progress.fail.tag}">失败</span>
+      <h2 th:text="#{progress.fail.title}">这次抓取没有完成</h2>
+      <p class="fail-reason" id="failReason"></p>
+      <p class="fail-url mono" id="failUrl" th:text="${url}"></p>
+      <p class="fail-hint" th:text="#{progress.fail.hint}">请改用公网可访问的 http/https 地址，或稍后重试。</p>
+      <div class="actions center" style="margin-top:0">
+        <a class="btn primary" th:href="@{/}" th:text="#{progress.fail.retry}">返回修改网址</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+<script th:inline="javascript">
+(function () {
+  var taskId = /*[[${taskId}]]*/ '';
+  var startedAt = /*[[${startedAt}]]*/ 0;
+  var previewUrl = /*[[@{/preview(taskId=${taskId})}]]*/ '/preview';
+  var T = {
+    connecting: /*[[#{progress.connecting}]]*/ '',
+    working: /*[[#{progress.working}]]*/ '',
+    redirect: /*[[#{progress.done.redirect}]]*/ '',
+    running: /*[[#{progress.state.running}]]*/ '',
+    done: /*[[#{progress.state.done}]]*/ '',
+    failed: /*[[#{progress.state.failed}]]*/ ''
+  };
+  if (!startedAt) { startedAt = Date.now(); }
+
+  var els = {
+    crawl: document.getElementById('crawlView'),
+    fail: document.getElementById('failView'),
+    status: document.getElementById('statusText'),
+    pct: document.getElementById('pct'),
+    bar: document.getElementById('bar'),
+    now: document.getElementById('nowUrl'),
+    processed: document.getElementById('mProcessed'),
+    limit: document.getElementById('mLimit'),
+    time: document.getElementById('mTime'),
+    state: document.getElementById('mState'),
+    feed: document.getElementById('feed'),
+    feedEmpty: document.getElementById('feedEmpty'),
+    reason: document.getElementById('failReason')
+  };
+
+  var seen = {};
+  var rows = [];
+  var stopped = false;
+  var pollTimer = null;
+  var clockTimer = null;
+  var stompClient = null;
+
+  function nowSeconds() {
+    return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  }
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  function tick() {
+    var s = nowSeconds();
+    els.time.textContent = s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + pad(s % 60) + 's';
+  }
+
+  function displayPath(u) {
+    try {
+      var o = new URL(u);
+      return (o.pathname || '/') + o.search;
+    } catch (e) { return u; }
+  }
+
+  function pushFeed(u) {
+    if (!u || seen[u]) { return; }
+    seen[u] = 1;
+    if (els.feedEmpty && els.feedEmpty.parentNode) { els.feedEmpty.parentNode.removeChild(els.feedEmpty); }
+    var row = document.createElement('div');
+    row.className = 'feed-row';
+    var path = document.createElement('span');
+    path.className = 'fr-path';
+    path.textContent = displayPath(u);
+    path.title = u;
+    var mark = document.createElement('span');
+    mark.className = 'fr-status';
+    mark.textContent = '\u2713';
+    var time = document.createElement('span');
+    time.className = 'fr-time';
+    var d = new Date();
+    time.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    row.appendChild(path);
+    row.appendChild(mark);
+    row.appendChild(time);
+    els.feed.insertBefore(row, els.feed.firstChild);
+    rows.push(row);
+    while (rows.length > 80) {
+      var old = rows.shift();
+      if (old.parentNode) { old.parentNode.removeChild(old); }
+    }
+  }
+
+  function normalize(status) {
+    if (status === 'completed' || status === 'failed') { return status; }
+    return 'running';
+  }
+
+  function stopTimers() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
+    if (stompClient) { try { stompClient.disconnect(); } catch (e) { /* ignore */ } stompClient = null; }
+  }
+
+  function showFail(fallbackReason) {
+    if (stopped) { return; }
+    stopped = true;
+    stopTimers();
+    if (fallbackReason) { els.reason.textContent = fallbackReason; }
+    els.crawl.classList.add('hide');
+    els.fail.classList.remove('hide');
+    fetch('/api/task/' + encodeURIComponent(taskId) + '/result')
+      .then(function (res) { return res.json(); })
+      .then(function (data) { if (data && data.error) { els.reason.textContent = data.error; } })
+      .catch(function () { /* keep the fallback reason */ });
+  }
+
+  function showDone() {
+    if (stopped) { return; }
+    stopped = true;
+    stopTimers();
+    els.state.textContent = T.done;
+    els.status.textContent = T.redirect;
+    els.pct.textContent = '100%';
+    els.bar.style.width = '100%';
+    setTimeout(function () { window.location.href = previewUrl; }, 1200);
+  }
+
+  function update(p) {
+    if (stopped) { return; }
+    var status = normalize(p.status);
+    var pct = typeof p.percentage === 'number' ? Math.max(0, Math.min(100, p.percentage)) : 0;
+
+    if (status === 'running') {
+      els.state.textContent = T.running;
+      els.status.textContent = pct > 0 ? T.working : T.connecting;
+      els.pct.textContent = Math.round(pct) + '%';
+      els.bar.style.width = pct + '%';
+    }
+    if (typeof p.crawledPages === 'number' && p.crawledPages >= 0) {
+      els.processed.textContent = p.crawledPages;
+    }
+    if (typeof p.totalPages === 'number' && p.totalPages > 0) {
+      els.limit.textContent = p.totalPages;
+    }
+    if (p.currentUrl) {
+      els.now.textContent = p.currentUrl;
+      pushFeed(p.currentUrl);
+    }
+
+    if (status === 'completed') { showDone(); }
+    else if (status === 'failed') { showFail(p.message && p.message.indexOf('\uFF1A') > -1 ? null : p.message); }
+  }
+
+  function poll() {
+    fetch('/api/task/' + encodeURIComponent(taskId) + '/progress')
+      .then(function (res) {
+        if (!res.ok) { return null; }
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data) { return; }
+        update({
+          status: data.status,
+          percentage: data.percentage,
+          crawledPages: data.crawledPages,
+          totalPages: data.totalPages,
+          message: data.message,
+          currentUrl: data.currentUrl
+        });
+      })
+      .catch(function () { /* transient network error, next tick retries */ });
+  }
+
+  function connectWebSocket() {
+    try {
+      stompClient = Stomp.over(new SockJS('/ws-progress'));
+      stompClient.debug = null;
+      stompClient.connect({}, function () {
+        stompClient.subscribe('/topic/progress/' + taskId, function (message) {
+          try { update(JSON.parse(message.body)); } catch (e) { /* ignore malformed frame */ }
+        });
+      }, function () {
+        stompClient = null;
+      });
+    } catch (e) {
+      stompClient = null;
+    }
+  }
+
+  clockTimer = setInterval(tick, 1000);
+  tick();
+  poll();
+  pollTimer = setInterval(poll, 2000);
+  connectWebSocket();
+
+  window.addEventListener('beforeunload', function () {
+    if (pollTimer) { clearInterval(pollTimer); }
+    if (clockTimer) { clearInterval(clockTimer); }
+    if (stompClient) { try { stompClient.disconnect(); } catch (e) { /* ignore */ } }
+  });
+})();
+</script>
+</body>
+</html>

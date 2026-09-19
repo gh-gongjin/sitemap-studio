@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.report}">Sitemap Studio · SEO 健康报告</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='reports', langZh=@{/report/{id}(id=${report.taskId}, lang='zh-CN')}, langEn=@{/report/{id}(id=${report.taskId}, lang='en')})}"></header>
+
+<main class="rise">
+  <div class="done-head">
+    <span class="tag tag-ok">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 5-7"/></svg>
+      <span th:text="#{report.tag}">SEO 健康报告</span>
+    </span>
+    <h2 th:text="#{report.title}">站点 SEO 健康报告</h2>
+    <div class="meta-chips">
+      <span class="mchip"><i th:text="#{preview.site}">网站</i><b class="mono info-value" th:text="${report.siteUrl}"></b></span>
+      <span class="mchip"><i th:text="#{preview.task}">任务</i><b class="mono" th:text="${report.taskId}"></b></span>
+      <span class="mchip" th:if="${report.createdAt != null}"><i th:text="#{report.generated}">生成时间</i><b class="mono" th:text="${#temporals.format(report.createdAt, 'yyyy-MM-dd HH:mm')}"></b></span>
+    </div>
+  </div>
+
+  <div class="panel done-panel">
+    <div class="score-grid">
+      <div class="score-box"
+           th:classappend="${report.score >= 90} ? '' : (${report.score >= 70} ? 'warn' : 'bad')">
+        <b th:text="${report.score}">0</b>
+        <span th:text="${report.score >= 90} ? #{report.grade.excellent} : (${report.score >= 70} ? #{report.grade.good} : (${report.score >= 50} ? #{report.grade.fair} : #{report.grade.poor}))">良好</span>
+      </div>
+      <div class="meters side">
+        <div class="meter"><b th:text="${report.pagesAudited}">0</b><span th:text="#{report.m.pages}">已审核页面</span></div>
+        <div class="meter"><b th:text="${report.brokenLinks}">0</b><span th:text="#{report.m.broken}">断链</span></div>
+        <div class="meter"><b th:text="${report.errorCount}">0</b><span th:text="#{report.m.errors}">错误</span></div>
+        <div class="meter"><b th:text="${report.warningCount}">0</b><span th:text="#{report.m.warnings}">警告</span></div>
+        <div class="meter"><b th:text="${report.infoCount}">0</b><span th:text="#{report.m.infos}">提示</span></div>
+      </div>
+    </div>
+    <p class="note" th:text="#{report.note}">报告在爬取结束后生成并保存到本地数据库，可随时回看。</p>
+    <p class="note" th:if="${report.truncated}" th:text="#{report.truncated}">问题清单超过上限，仅展示前 500 条。</p>
+    <div class="actions center">
+      <a class="btn" download th:href="@{/report/{id}/export(id=${report.taskId}, lang=${#locale.toLanguageTag()})}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5"/></svg>
+        <span th:text="#{report.export.csv}">导出 CSV</span>
+      </a>
+      <a class="btn primary" download th:href="@{/report/{id}/export(id=${report.taskId}, format='pdf', lang=${#locale.toLanguageTag()})}" th:text="#{report.export.pdf}">导出 PDF</a>
+      <a class="btn" download th:href="@{/report/{id}/export(id=${report.taskId}, format='docx', lang=${#locale.toLanguageTag()})}" th:text="#{report.export.word}">导出 Word</a>
+      <a class="btn" th:href="@{/preview(taskId=${report.taskId})}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span th:text="#{report.back.preview}">查看站点地图</span>
+      </a>
+      <a class="btn" th:href="@{/reports}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+        <span th:text="#{report.back.list}">历史报告</span>
+      </a>
+      <a class="btn" th:href="@{/}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        <span th:text="#{preview.regen}">重新生成</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="list-panel">
+    <div class="list-head">
+      <h3 th:text="#{report.list.title}">问题清单</h3>
+      <span class="list-count mono" th:text="#{report.list.count(${#lists.size(issues)})}">共 0 条</span>
+    </div>
+    <div class="list-scroll" th:if="${!#lists.isEmpty(issues)}">
+      <table class="url-table report-table">
+        <thead>
+          <tr>
+            <th th:text="#{report.th.severity}">级别</th>
+            <th th:text="#{report.th.rule}">规则</th>
+            <th th:text="#{report.th.url}">URL</th>
+            <th th:text="#{report.th.detail}">详情</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="issue : ${issues}">
+            <td th:with="sev=${#strings.toLowerCase(issue.severity.name())}">
+              <span class="sev"
+                    th:classappend="${sev == 'error'} ? 'sev-e' : (${sev == 'warning'} ? 'sev-w' : 'sev-i')"
+                    th:text="${#messages.msg('report.sev.' + sev)}">错误</span>
+            </td>
+            <td class="rule-name" th:text="${#messages.msgOrNull('report.rule.' + issue.rule) ?: issue.rule}">规则</td>
+            <td class="u" th:text="${issue.url}"></td>
+            <td class="det" th:text="${#strings.isEmpty(issue.detail) ? '—' : (issue.rule == 'slow-page' ? issue.detail + ' ms' : issue.detail)}">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="empty-ok" th:if="${#lists.isEmpty(issues)}">
+      <div class="ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      </div>
+      <b th:text="#{report.clean.title}">没有发现问题</b>
+      <p th:text="#{report.clean.d}">已审核页面均通过标题、描述、H1、canonical 与图片 alt 检查。</p>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

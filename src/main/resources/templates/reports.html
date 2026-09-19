@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.reports}">Sitemap Studio · 历史 SEO 报告</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='reports', langZh=@{/reports(lang='zh-CN')}, langEn=@{/reports(lang='en')})}"></header>
+
+<main class="rise">
+  <div class="prose-head">
+    <span class="tag" th:text="#{reports.tag}">SEO 报告</span>
+    <h2 th:text="#{reports.title}">历史 SEO 健康报告</h2>
+    <p class="lede" th:text="#{reports.lede}">每次爬取完成后都会生成一份报告并保存在本地数据库，可随时回看。</p>
+  </div>
+
+  <div class="list-panel" th:if="${!#lists.isEmpty(reports)}">
+    <div class="list-head">
+      <h3 th:text="#{reports.title}">历史 SEO 健康报告</h3>
+      <span class="list-count mono" th:text="#{reports.count(${#lists.size(reports)})}">共 0 份</span>
+    </div>
+    <div class="list-scroll">
+      <table class="url-table rep-table">
+        <thead>
+          <tr>
+            <th th:text="#{reports.th.site}">网站</th>
+            <th th:text="#{reports.th.score}">评分</th>
+            <th th:text="#{reports.th.pages}">页面</th>
+            <th th:text="#{reports.th.errors}">错误</th>
+            <th th:text="#{reports.th.warnings}">警告</th>
+            <th th:text="#{reports.th.infos}">提示</th>
+            <th th:text="#{reports.th.time}">生成时间</th>
+            <th th:text="#{reports.th.view}">查看</th>
+            <th th:text="#{report.export.title}">导出报告</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="r : ${reports}">
+            <td class="u" th:text="${r.siteUrl}"></td>
+            <td class="sc" th:text="${r.score}">0</td>
+            <td class="lm" th:text="${r.pagesAudited}">0</td>
+            <td class="lm" th:text="${r.errorCount}">0</td>
+            <td class="lm" th:text="${r.warningCount}">0</td>
+            <td class="lm" th:text="${r.infoCount}">0</td>
+            <td class="lm" th:text="${r.createdAt != null} ? ${#temporals.format(r.createdAt, 'yyyy-MM-dd HH:mm')} : '—'">—</td>
+            <td><a class="link" th:href="@{/report/{id}(id=${r.taskId})}" th:text="#{reports.th.view}">查看</a></td>
+            <td>
+              <a class="link" download th:href="@{/report/{id}/export(id=${r.taskId}, lang=${#locale.toLanguageTag()})}" th:text="#{report.export.csv}">导出 CSV</a>
+              <a class="link" download th:href="@{/report/{id}/export(id=${r.taskId}, format='pdf', lang=${#locale.toLanguageTag()})}" th:text="#{report.export.pdf}">导出 PDF</a>
+              <a class="link" download th:href="@{/report/{id}/export(id=${r.taskId}, format='docx', lang=${#locale.toLanguageTag()})}" th:text="#{report.export.word}">导出 Word</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" th:if="${#lists.isEmpty(reports)}">
+    <div class="empty-ok">
+      <div class="ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 5-7"/></svg>
+      </div>
+      <b th:text="#{reports.empty}">还没有报告，先回到首页生成一次站点地图。</b>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

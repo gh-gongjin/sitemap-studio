@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.auto}">Sitemap Studio · 自动更新</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='auto', langZh=@{/auto(lang='zh-CN')}, langEn=@{/auto(lang='en')})}"></header>
+
+<main class="rise">
+  <div class="prose-head">
+    <span class="tag" th:text="#{auto.tag}">自动化</span>
+    <h2 th:text="#{auto.title}">自动更新站点</h2>
+    <p class="lede" th:text="#{auto.lede}">定期重新抓取站点并保存新版本，搜索引擎总能拿到最新的站点地图。</p>
+  </div>
+
+  <div class="panel">
+    <form class="auto-form" id="autoForm" method="post" th:action="@{/auto}" novalidate>
+      <div class="urlbar">
+        <svg class="urlbar-ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
+        <input type="url" name="url" required autocomplete="off"
+               th:placeholder="#{auto.form.placeholder}" placeholder="https://example.com">
+        <button class="go" type="submit">
+          <span th:text="#{auto.form.submit}">加入自动更新</span>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+      <p class="field-error" id="urlErr" hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+        <span></span>
+      </p>
+      <div class="auto-opts">
+        <label class="switch-row">
+          <span>
+            <b th:text="#{auto.form.images}">包含图片</b>
+            <i th:text="#{auto.form.images.d}">为每个页面写入 image:image 条目</i>
+          </span>
+          <input type="checkbox" name="includeImages" th:checked="${true}">
+          <span class="sw"></span>
+        </label>
+        <label class="switch-row">
+          <span>
+            <b th:text="#{auto.form.videos}">包含视频</b>
+            <i th:text="#{auto.form.videos.d}">为视频页写入 video:video 条目</i>
+          </span>
+          <input type="checkbox" name="includeVideos">
+          <span class="sw"></span>
+        </label>
+        <label class="switch-row">
+          <span>
+            <b th:text="#{auto.form.news}">包含新闻</b>
+            <i th:text="#{auto.form.news.d}">收录 48 小时内发布的文章页</i>
+          </span>
+          <input type="checkbox" name="includeNews">
+          <span class="sw"></span>
+        </label>
+        <div class="switch-row plain">
+          <span>
+            <b th:text="#{auto.form.interval}">更新间隔</b>
+            <i th:text="#{auto.form.interval.d}">两次自动抓取之间的等待时间</i>
+          </span>
+          <div class="sel-wrap" id="intervalSel">
+            <input type="hidden" name="intervalHours" value="24">
+            <button type="button" class="sel sel-btn" aria-haspopup="listbox" aria-expanded="false">
+              <span class="sel-label" th:text="#{auto.interval.24}">每天</span>
+              <svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <ul class="sel-menu" role="listbox" hidden>
+              <li role="option" data-value="6" th:text="#{auto.interval.6}">每 6 小时</li>
+              <li role="option" data-value="12" th:text="#{auto.interval.12}">每 12 小时</li>
+              <li role="option" data-value="24" aria-selected="true" th:text="#{auto.interval.24}">每天</li>
+              <li role="option" data-value="72" th:text="#{auto.interval.72}">每 3 天</li>
+              <li role="option" data-value="168" th:text="#{auto.interval.168}">每周</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <p class="note" th:text="#{auto.hint}">添加后会立即执行一次，之后按间隔自动更新；失败会保留上一个成功版本。</p>
+    </form>
+  </div>
+
+  <div class="panel flash ok" th:if="${flash != null}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    <span th:text="${#messages.msg(flash)}">已保存。</span>
+  </div>
+  <div class="panel flash" th:if="${flashError != null}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+    <span th:text="${flashError}">添加失败。</span>
+  </div>
+
+  <div class="list-panel" th:if="${!#lists.isEmpty(rows)}">
+    <div class="list-head">
+      <h3 th:text="#{auto.title}">自动更新站点</h3>
+      <span class="list-count mono" th:text="#{auto.count(${#lists.size(rows)})}">共 0 个站点</span>
+    </div>
+    <div class="list-scroll">
+      <table class="url-table auto-table">
+        <thead>
+          <tr>
+            <th th:text="#{auto.th.site}">网站</th>
+            <th th:text="#{auto.th.interval}">间隔</th>
+            <th th:text="#{auto.th.status}">状态</th>
+            <th th:text="#{auto.th.next}">下次执行</th>
+            <th th:text="#{auto.th.version}">最新版本</th>
+            <th th:text="#{auto.th.actions}">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="row : ${rows}">
+            <td class="u">
+              <a class="link" th:href="@{/auto/{id}(id=${row.site.id})}" th:text="${row.site.url}">https://example.com</a>
+              <span class="flags" th:if="${row.site.includeImages || row.site.includeVideos || row.site.includeNews}">
+                <span th:if="${row.site.includeImages}" th:text="#{auto.form.images.short}">图片</span>
+                <span th:if="${row.site.includeVideos}" th:text="#{auto.form.videos.short}">视频</span>
+                <span th:if="${row.site.includeNews}" th:text="#{auto.form.news.short}">新闻</span>
+              </span>
+            </td>
+            <td class="lm mono" th:with="iv=${row.site.intervalHours}"
+                th:text="${#messages.msgOrNull('auto.interval.' + iv) ?: #messages.msg('auto.interval.generic', iv)}">每天</td>
+            <td th:with="st=${row.site.lastStatus ?: 'PENDING'}">
+              <span class="state" th:classappend="${'state-' + #strings.toLowerCase(st)}"
+                    th:text="${#messages.msgOrNull('auto.status.' + st) ?: st}">等待</span>
+            </td>
+            <td class="lm" th:text="${row.site.enabled && row.site.nextRunAt != null ? #temporals.format(row.site.nextRunAt, 'MM-dd HH:mm') : '—'}">—</td>
+            <td class="ver">
+              <a class="link mono" th:if="${row.latest != null}"
+                 th:href="@{/auto/{id}/download(id=${row.site.id})}"
+                 th:text="${'v' + row.latest.versionNumber + ' · ' + row.latest.urlCount}">v1 · 0</a>
+              <span class="mono dim" th:unless="${row.latest != null}" th:text="#{auto.version.none}">—</span>
+            </td>
+            <td class="acts">
+              <div class="act-row">
+                <form method="post" th:action="@{/auto/{id}/run(id=${row.site.id})}">
+                  <button class="mini" type="submit" th:text="#{auto.action.run}">立即执行</button>
+                </form>
+                <form method="post" th:action="@{/auto/{id}/toggle(id=${row.site.id})}">
+                  <button class="mini" type="submit"
+                          th:text="${row.site.enabled ? #messages.msg('auto.action.disable') : #messages.msg('auto.action.enable')}">停用</button>
+                </form>
+                <a class="mini link" th:href="@{/auto/{id}(id=${row.site.id})}" th:text="#{auto.action.detail}">版本</a>
+                <form class="js-del" method="post" th:action="@{/auto/{id}/delete(id=${row.site.id})}">
+                  <button class="mini danger" type="submit" th:text="#{auto.action.delete}">删除</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" th:if="${#lists.isEmpty(rows)}">
+    <div class="empty-ok">
+      <div class="ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/><path d="M16 3h5v5"/></svg>
+      </div>
+      <b th:text="#{auto.empty}">还没有自动更新站点，先在上面添加一个。</b>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+<script th:src="@{/js/app.js}"></script>
+<script th:inline="javascript">
+(function () {
+  var form = document.getElementById("autoForm");
+  if (form) {
+    SitemapUI.urlGuard({
+      form: form,
+      input: form.querySelector("input[name=url]"),
+      error: document.getElementById("urlErr"),
+      messages: {
+        required: /*[[#{form.url.required}]]*/ '请输入要抓取的网址',
+        invalid: /*[[#{form.url.invalid}]]*/ '请输入有效的网址，例如 https://example.com'
+      }
+    });
+  }
+
+  var selRoot = document.getElementById("intervalSel");
+  if (selRoot) {
+    SitemapUI.selectMenu({
+      root: selRoot,
+      button: selRoot.querySelector(".sel-btn"),
+      menu: selRoot.querySelector(".sel-menu"),
+      input: selRoot.querySelector("input[type=hidden]"),
+      label: selRoot.querySelector(".sel-label")
+    });
+  }
+
+  var del = {
+    title: /*[[#{auto.confirm.delete.title}]]*/ '删除自动更新站点',
+    message: /*[[#{auto.confirm.delete}]]*/ '确定删除这个自动更新站点吗？已保存的版本也会一并删除。',
+    confirmText: /*[[#{auto.action.delete}]]*/ '删除',
+    cancelText: /*[[#{common.cancel}]]*/ '取消'
+  };
+  document.querySelectorAll("form.js-del").forEach(function (delForm) {
+    delForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      SitemapUI.confirm({
+        title: del.title,
+        message: del.message,
+        confirmText: del.confirmText,
+        cancelText: del.cancelText,
+        danger: true
+      }).then(function (ok) {
+        if (ok) delForm.submit();
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

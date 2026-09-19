@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:lang="${#locale.language == 'zh' ? 'zh-CN' : 'en'}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#07080a">
+  <title th:text="#{title.home}">Sitemap Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='home', langZh=@{/(lang='zh-CN')}, langEn=@{/(lang='en')})}"></header>
+
+<main class="rise">
+  <div th:if="${error}" class="flash" role="alert">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>
+    </svg>
+    <span th:text="${error}">生成失败</span>
+  </div>
+
+  <section class="hero">
+    <span class="badge"><i></i><span th:text="#{home.badge}">免费 · 免注册 · 最多 500 个 URL</span></span>
+    <h1 th:text="#{home.title}">让搜索引擎看见你的每一个页面</h1>
+    <p class="lede" th:text="#{home.lede}">输入网址，几十秒内生成标准 XML 站点地图。</p>
+  </section>
+
+  <form class="composer" id="genForm" th:action="@{/generate-async}" method="post" autocomplete="off" novalidate>
+    <div class="urlbar">
+      <svg class="urlbar-ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 13a5 5 0 0 0 7.1 0l2.9-2.9a5 5 0 0 0-7.1-7.1L11.5 4.4"/>
+        <path d="M14 11a5 5 0 0 0-7.1 0L4 13.9a5 5 0 0 0 7.1 7.1l1.4-1.4"/>
+      </svg>
+      <input id="url" name="url" type="text" th:placeholder="#{home.url.ph}" th:value="${url}"
+             placeholder="https://your-domain.com" required>
+      <button class="go" type="submit" th:data-starting="#{home.starting}">
+        <span th:text="#{home.generate}">生成站点地图</span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+    <p class="field-error" id="urlErr" hidden>
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+      <span></span>
+    </p>
+    <div class="composer-foot">
+      <button class="ghost" type="button" id="toggleSettings" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+        </svg>
+        <span th:text="#{home.settings}">设置</span>
+        <svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="chips">
+        <span class="chips-label" th:text="#{home.try}">试试</span>
+        <button class="chip" type="button" data-url="https://www.example.com">example.com</button>
+        <button class="chip" type="button" data-url="https://github.com">github.com</button>
+        <button class="chip" type="button" data-url="https://www.baidu.com">baidu.com</button>
+        <button class="chip warn" type="button" data-url="http://127.0.0.1/" th:title="#{home.chip.warn}">127.0.0.1</button>
+      </div>
+    </div>
+    <div class="settings" id="settings">
+      <label class="switch-row">
+        <span>
+          <b th:text="#{home.opt.images}">包含图片站点地图</b>
+          <i th:text="#{home.opt.images.d}">为每个页面写入 image:image 条目</i>
+        </span>
+        <input type="checkbox" id="includeImages" name="includeImages" th:checked="${includeImages}">
+        <span class="sw"></span>
+      </label>
+      <label class="switch-row">
+        <span>
+          <b th:text="#{home.opt.videos}">包含视频站点地图</b>
+          <i th:text="#{home.opt.videos.d}">为每个页面写入 video:video 条目</i>
+        </span>
+        <input type="checkbox" id="includeVideos" name="includeVideos" th:checked="${includeVideos}">
+        <span class="sw"></span>
+      </label>
+      <label class="switch-row">
+        <span>
+          <b th:text="#{home.opt.news}">包含新闻站点地图</b>
+          <i th:text="#{home.opt.news.d}">收录 48 小时内发布的文章页</i>
+        </span>
+        <input type="checkbox" id="includeNews" name="includeNews" th:checked="${includeNews}">
+        <span class="sw"></span>
+      </label>
+    </div>
+  </form>
+
+  <div class="stats">
+    <div class="stat"><b th:text="${maxPages}">1000</b><span th:text="#{home.stat.limit}">URL 上限</span></div>
+    <div class="stat"><b>XML</b><span th:text="#{home.stat.format}">标准格式</span></div>
+    <div class="stat"><b>0</b><span th:text="#{home.stat.signup}">注册步骤</span></div>
+  </div>
+
+  <div class="features">
+    <article class="feature">
+      <span class="fico">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+        </svg>
+      </span>
+      <h3 th:text="#{home.f1.t}">同域智能抓取</h3>
+      <p th:text="#{home.f1.d}">遵循 robots.txt，只在同一域名下发现链接，逐跳校验重定向。</p>
+    </article>
+    <article class="feature">
+      <span class="fico">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 20h18M6 20V10M12 20V4M18 20v-7"/>
+        </svg>
+      </span>
+      <h3 th:text="#{home.f2.t}">实时抓取看板</h3>
+      <p th:text="#{home.f2.d}">已处理数量、用时和最近抓取的 URL 全程可见。</p>
+    </article>
+    <article class="feature">
+      <span class="fico">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>
+        </svg>
+      </span>
+      <h3 th:text="#{home.f3.t}">任务制下载</h3>
+      <p th:text="#{home.f3.d}">结果保存在任务里，预览和下载不会重新抓取。</p>
+    </article>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+
+<script th:src="@{/js/app.js}"></script>
+<script th:inline="javascript">
+  (function () {
+    var urlInput = document.getElementById("url");
+    var form = document.getElementById("genForm");
+    var toggle = document.getElementById("toggleSettings");
+    var settings = document.getElementById("settings");
+    var submitBtn = form.querySelector("button[type=submit]");
+
+    SitemapUI.urlGuard({
+      form: form,
+      input: urlInput,
+      error: document.getElementById("urlErr"),
+      messages: {
+        required: /*[[#{form.url.required}]]*/ '请输入要抓取的网址',
+        invalid: /*[[#{form.url.invalid}]]*/ '请输入有效的网址，例如 https://example.com'
+      }
+    });
+
+    toggle.addEventListener("click", function () {
+      settings.classList.toggle("open");
+      toggle.classList.toggle("open");
+      toggle.setAttribute("aria-expanded", settings.classList.contains("open") ? "true" : "false");
+    });
+
+    document.querySelectorAll(".chip").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        urlInput.value = chip.dataset.url;
+        urlInput.focus();
+      });
+    });
+
+    form.addEventListener("submit", function (e) {
+      if (e.defaultPrevented) return;
+      submitBtn.disabled = true;
+      submitBtn.querySelector("span").textContent = submitBtn.dataset.starting;
+    });
+  })();
+</script>
+</body>
+</html>

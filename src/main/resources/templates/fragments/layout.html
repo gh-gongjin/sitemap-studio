@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<div th:fragment="bgfx">
+  <div class="bg-fx"></div>
+  <div class="grid-fx"></div>
+  <div class="noise-fx"></div>
+</div>
+
+<header class="nav" th:fragment="topbar(active, langZh, langEn)">
+  <div class="nav-in">
+    <a class="brand" th:href="@{/}">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2.5" width="6" height="5" rx="1.2"/>
+          <rect x="2" y="16.5" width="6" height="5" rx="1.2"/>
+          <rect x="16" y="16.5" width="6" height="5" rx="1.2"/>
+          <path d="M12 7.5v4M5 16.5v-2.5h14v2.5"/>
+        </svg>
+      </span>
+      <span>
+        <span class="brand-name" th:text="#{brand.name}">Sitemap Studio</span>
+        <span class="brand-sub" th:text="#{brand.sub}">XML map for search engines</span>
+      </span>
+    </a>
+    <div class="nav-right">
+      <nav class="nav-links">
+        <a th:href="@{/}" th:classappend="${active == 'home'} ? 'active'" th:text="#{nav.home}">首页</a>
+        <a th:href="@{/auto}" th:classappend="${active == 'auto'} ? 'active'" th:text="#{nav.auto}">自动更新</a>
+        <a th:href="@{/reports}" th:classappend="${active == 'reports'} ? 'active'" th:text="#{nav.reports}">报告</a>
+        <a th:href="@{/help}" th:classappend="${active == 'help'} ? 'active'" th:text="#{nav.help}">帮助</a>
+        <a th:href="@{/about}" th:classappend="${active == 'about'} ? 'active'" th:text="#{nav.about}">关于</a>
+      </nav>
+      <div class="seg" role="group" aria-label="Language">
+        <a th:href="${langZh}" th:classappend="${#locale.language == 'zh'} ? 'on'" th:text="#{lang.zh}">中文</a>
+        <a th:href="${langEn}" th:classappend="${#locale.language != 'zh'} ? 'on'" th:text="#{lang.en}">EN</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<footer class="foot" th:fragment="footer">
+  <span th:text="#{footer.left}">Sitemap Studio</span>
+  <span>
+    <a th:href="@{/help}" th:text="#{nav.help}">帮助</a>
+    <span> · </span>
+    <a th:href="@{/about}" th:text="#{nav.about}">关于</a>
+    <span> · </span>
+    <span th:text="#{footer.right}">中英双语</span>
+  </span>
+</footer>
+
+<div class="toast" id="toast" th:fragment="toast"></div>
+
+</body>
+</html>

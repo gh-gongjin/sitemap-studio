@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.about}">Sitemap Studio · 关于</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='about', langZh=@{/(lang='zh-CN')}, langEn=@{/(lang='en')})}"></header>
+
+<main class="rise">
+  <div class="prose-head">
+    <span class="tag" th:text="#{about.tag}">关于</span>
+    <h2 th:text="#{about.title}">给搜索引擎的路线图</h2>
+  </div>
+  <div class="prose-grid">
+    <div class="panel">
+      <p class="prose-p" th:text="#{about.p1}">Sitemap Studio 的流程参考 xml-sitemaps.com。</p>
+      <p class="prose-p" th:text="#{about.p2}">抓取通道遵循 robots.txt、同域范围和逐跳重定向校验。</p>
+    </div>
+    <div class="panel">
+      <h3 th:text="#{about.flow}">流程</h3>
+      <ul class="mini-list">
+        <li th:text="#{about.fl1}">输入完整网址</li>
+        <li th:text="#{about.fl2}">按需打开媒体设置</li>
+        <li th:text="#{about.fl3}">实时看抓取进度</li>
+        <li th:text="#{about.fl4}">下载并提交 sitemap.xml</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

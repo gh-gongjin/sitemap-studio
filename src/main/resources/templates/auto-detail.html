@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.autoDetail}">Sitemap Studio · 自动更新版本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='auto', langZh=@{/auto/{id}(id=${site.id}, lang='zh-CN')}, langEn=@{/auto/{id}(id=${site.id}, lang='en')})}"></header>
+
+<main class="rise">
+  <div class="prose-head">
+    <span class="tag" th:text="#{auto.detail.tag}">自动更新</span>
+    <h2 class="mono url-title" th:text="${site.url}">https://example.com</h2>
+    <p class="lede" th:text="#{auto.detail.lede}">每次成功更新都会保存一个新版本，最多保留最近 5 个。</p>
+  </div>
+
+  <div class="panel">
+    <div class="meters">
+      <div class="meter" th:with="iv=${site.intervalHours}"><b th:text="${#messages.msgOrNull('auto.interval.' + iv) ?: #messages.msg('auto.interval.generic', iv)}">每天</b><span th:text="#{auto.detail.m.interval}">更新间隔</span></div>
+      <div class="meter" th:with="st=${site.lastStatus ?: 'PENDING'}"><b th:text="${#messages.msgOrNull('auto.status.' + st) ?: st}">等待</b><span th:text="#{auto.detail.m.status}">上次状态</span></div>
+      <div class="meter"><b th:text="${site.lastRunAt != null ? #temporals.format(site.lastRunAt, 'MM-dd HH:mm') : '—'}">—</b><span th:text="#{auto.detail.m.last}">上次执行</span></div>
+      <div class="meter"><b th:text="${site.enabled && site.nextRunAt != null ? #temporals.format(site.nextRunAt, 'MM-dd HH:mm') : '—'}">—</b><span th:text="#{auto.detail.m.next}">下次执行</span></div>
+    </div>
+    <div class="detail-alert" th:if="${site.lastStatus == 'FAILED' && site.lastMessage != null}">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+      <span th:text="${site.lastMessage}">失败原因</span>
+    </div>
+    <div class="actions center">
+      <a class="btn" th:href="@{/auto}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        <span th:text="#{auto.detail.back}">返回列表</span>
+      </a>
+      <form method="post" th:action="@{/auto/{id}/run(id=${site.id})}">
+        <button class="btn primary" type="submit" th:text="#{auto.action.run}">立即执行</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel flash ok" th:if="${flash != null}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    <span th:text="${#messages.msg(flash)}">已保存。</span>
+  </div>
+  <div class="panel flash" th:if="${flashError != null}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+    <span th:text="${flashError}">操作失败。</span>
+  </div>
+
+  <div class="list-panel push-panel"
+       th:with="pEnabled=${pushConfig != null && pushConfig.enabled},
+                pProtocol=${pushConfig != null && pushConfig.protocol != null ? pushConfig.protocol : 'SFTP'},
+                pHost=${pushConfig != null && pushConfig.host != null ? pushConfig.host : ''},
+                pPort=${pushConfig != null ? pushConfig.port : 22},
+                pUser=${pushConfig != null && pushConfig.username != null ? pushConfig.username : ''},
+                pAuth=${pushConfig != null && pushConfig.authType != null ? pushConfig.authType : 'PASSWORD'},
+                pDir=${pushConfig != null && pushConfig.remoteDir != null ? pushConfig.remoteDir : ''},
+                pFile=${pushConfig != null && pushConfig.sitemapFileName != null ? pushConfig.sitemapFileName : 'sitemap.xml'},
+                pFp=${pushConfig != null ? pushConfig.hostKeyFingerprint : null},
+                pIn=${pushConfig != null && pushConfig.indexNowEnabled},
+                pInKey=${pushConfig != null && pushConfig.indexNowKey != null ? pushConfig.indexNowKey : ''},
+                pHasPwd=${pushConfig != null && pushConfig.hasPassword},
+                pHasKey=${pushConfig != null && pushConfig.hasPrivateKey}">
+    <div class="list-head">
+      <h3 th:text="#{auto.push.title}">推送到服务器</h3>
+      <span class="state" th:classappend="${pEnabled} ? 'state-success' : 'state-pending'"
+            th:text="${pEnabled} ? #{auto.push.on} : #{auto.push.off}">未启用推送</span>
+    </div>
+    <form class="push-form" id="pushForm" method="post"
+          th:action="@{/auto/{id}/push/settings(id=${site.id})}" novalidate>
+      <div class="push-switches">
+        <label class="switch-row">
+          <span>
+            <b th:text="#{auto.push.enabled}">启用推送</b>
+            <i th:text="#{auto.push.enabled.d}">更新成功后自动把站点地图上传到你的服务器</i>
+          </span>
+          <input type="checkbox" name="enabled" th:checked="${pEnabled}">
+          <span class="sw"></span>
+        </label>
+      </div>
+
+      <div class="push-group">
+        <h4 class="push-sub" th:text="#{auto.push.g.server}">服务器</h4>
+        <div class="push-grid">
+          <div class="field">
+            <label class="field-label" for="pushHost" th:text="#{auto.push.host}">主机地址</label>
+            <input id="pushHost" type="text" name="host" autocomplete="off" th:value="${pHost}"
+                   th:placeholder="#{auto.push.host.ph}" placeholder="sftp.example.com">
+            <p class="field-error" id="hostErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="pushPort" th:text="#{auto.push.port}">端口</label>
+            <input id="pushPort" type="text" name="port" inputmode="numeric" autocomplete="off" th:value="${pPort}">
+            <p class="field-error" id="portErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+          <div class="field">
+            <label class="field-label" th:text="#{auto.push.protocol}">连接协议</label>
+            <div class="sel-wrap" id="protoSel">
+              <input type="hidden" name="protocol" th:value="${pProtocol}">
+              <button type="button" class="sel sel-btn" aria-haspopup="listbox" aria-expanded="false">
+                <span class="sel-label" th:text="${pProtocol}">SFTP</span>
+                <svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <ul class="sel-menu" role="listbox" hidden>
+                <li role="option" data-value="SFTP" th:attr="aria-selected=${pProtocol == 'SFTP'} ? 'true' : 'false'">SFTP</li>
+                <li role="option" data-value="FTP" th:attr="aria-selected=${pProtocol == 'FTP'} ? 'true' : 'false'">FTP</li>
+                <li role="option" data-value="FTPS" th:attr="aria-selected=${pProtocol == 'FTPS'} ? 'true' : 'false'">FTPS</li>
+              </ul>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" th:text="#{auto.push.user}">用户名</label>
+            <input id="pushUser" type="text" name="username" autocomplete="off" th:value="${pUser}">
+            <p class="field-error" id="userErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="push-group">
+        <h4 class="push-sub" th:text="#{auto.push.g.login}">登录与凭据</h4>
+        <div class="push-grid">
+          <div class="field js-auth-row" th:attr="hidden=${pProtocol != 'SFTP'} ? 'hidden' : null">
+            <label class="field-label" th:text="#{auto.push.auth}">认证方式</label>
+            <div class="sel-wrap" id="authSel">
+              <input type="hidden" name="authType" th:value="${pAuth}">
+              <button type="button" class="sel sel-btn" aria-haspopup="listbox" aria-expanded="false">
+                <span class="sel-label" th:text="${pAuth == 'PRIVATE_KEY'} ? #{auto.push.auth.key} : #{auto.push.auth.password}">密码</span>
+                <svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <ul class="sel-menu" role="listbox" hidden>
+                <li role="option" data-value="PASSWORD"
+                    th:attr="aria-selected=${pAuth == 'PRIVATE_KEY'} ? 'false' : 'true'"
+                    th:text="#{auto.push.auth.password}">密码</li>
+                <li role="option" data-value="PRIVATE_KEY"
+                    th:attr="aria-selected=${pAuth == 'PRIVATE_KEY'} ? 'true' : 'false'"
+                    th:text="#{auto.push.auth.key}">私钥</li>
+              </ul>
+            </div>
+          </div>
+          <div class="field js-auth-key" th:attr="hidden=${pAuth != 'PRIVATE_KEY'} ? 'hidden' : null">
+            <label class="field-label" th:text="#{auto.push.privateKey}">私钥内容</label>
+            <textarea name="privateKey" rows="5" autocomplete="off"
+                      th:placeholder="${pHasKey} ? #{auto.push.privateKey.keep} : #{auto.push.privateKey.hint}"
+                      placeholder="粘贴 PEM 格式私钥"></textarea>
+            <p class="field-error" id="keyErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+        </div>
+        <div class="push-grid push-grid-gap">
+          <div class="field">
+            <label class="field-label" th:text="#{auto.push.password}">密码</label>
+            <input type="password" name="password" autocomplete="new-password"
+                   th:placeholder="${pHasPwd} ? #{auto.push.password.keep} : #{auto.push.password.ph}"
+                   placeholder="请输入密码">
+            <p class="field-error" id="pwdErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="push-group">
+        <h4 class="push-sub" th:text="#{auto.push.g.transfer}">传输</h4>
+        <div class="push-grid">
+          <div class="field">
+            <label class="field-label" th:text="#{auto.push.dir}">远端目录</label>
+            <input type="text" name="remoteDir" autocomplete="off" th:value="${pDir}"
+                   th:placeholder="#{auto.push.dir.hint}" placeholder="留空表示登录目录">
+          </div>
+          <div class="field">
+            <label class="field-label" th:text="#{auto.push.fileName}">sitemap 文件名</label>
+            <input type="text" name="sitemapFileName" autocomplete="off" th:value="${pFile}">
+            <p class="field-error" id="fileErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+        </div>
+        <div class="push-note js-fingerprint" th:if="${pFp != null}">
+          <b th:text="#{auto.push.fingerprint}">主机指纹</b>
+          <code th:text="${pFp}">SHA256:…</code>
+          <span th:text="#{auto.push.fingerprint.hint}">首次连接成功后自动记录</span>
+        </div>
+      </div>
+
+      <div class="push-group">
+        <h4 class="push-sub" th:text="#{auto.push.g.index}">搜索引擎通知</h4>
+        <div class="push-switches">
+          <label class="switch-row">
+            <span>
+              <b th:text="#{auto.push.indexNow}">提交 IndexNow</b>
+              <i th:text="#{auto.push.indexNow.d}">推送成功后同时通知 Bing 等搜索引擎立即抓取</i>
+            </span>
+            <input type="checkbox" name="indexNowEnabled" th:checked="${pIn}">
+            <span class="sw"></span>
+          </label>
+        </div>
+        <div class="push-grid field js-indexnow-key" th:attr="hidden=${!pIn} ? 'hidden' : null">
+          <div class="field">
+            <label class="field-label" th:text="#{auto.push.indexNowKey}">IndexNow Key</label>
+            <input type="text" name="indexNowKey" autocomplete="off" th:value="${pInKey}"
+                   th:placeholder="#{auto.push.indexNowKey.hint}" placeholder="32 位十六进制字符">
+            <p class="field-error" id="inKeyErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions push-actions">
+        <button class="btn primary" type="submit" th:text="#{auto.push.save}">保存设置</button>
+      </div>
+      <p class="note" th:text="#{auto.push.hint}">测试连接与立即推送使用已保存的设置。</p>
+    </form>
+    <div class="push-actions outside">
+      <div class="actions">
+        <form class="js-push-test" method="post" th:action="@{/auto/{id}/push/test(id=${site.id})}">
+          <button class="btn" type="submit" th:text="#{auto.push.test}">测试连接</button>
+        </form>
+        <form class="js-push-now" method="post" th:action="@{/auto/{id}/push/run(id=${site.id})}">
+          <button class="btn primary" type="submit" th:text="#{auto.push.run}">立即推送</button>
+        </form>
+      </div>
+    </div>
+    <p class="push-empty" th:if="${#lists.isEmpty(pushLogs)}" th:text="#{auto.push.empty}">还没有推送记录，先保存设置，再点“立即推送”试一次。</p>
+  </div>
+
+  <div class="list-panel" th:if="${!#lists.isEmpty(pushLogs)}">
+    <div class="list-head">
+      <h3 th:text="#{auto.push.logs}">推送记录</h3>
+      <span class="list-count mono" th:text="#{auto.push.logs.count(${#lists.size(pushLogs)})}">共 0 条记录</span>
+    </div>
+    <div class="list-scroll">
+      <table class="url-table push-logs">
+        <thead>
+          <tr>
+            <th th:text="#{auto.push.th.time}">时间</th>
+            <th th:text="#{auto.push.th.status}">结果</th>
+            <th th:text="#{auto.push.th.version}">版本</th>
+            <th th:text="#{auto.push.th.protocol}">协议</th>
+            <th th:text="#{auto.push.th.indexNow}">IndexNow</th>
+            <th th:text="#{auto.push.th.duration}">耗时</th>
+            <th th:text="#{auto.push.th.detail}">详情</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="log : ${pushLogs}">
+            <td class="ld-time lm" th:text="${log.createdAt != null ? #temporals.format(log.createdAt, 'MM-dd HH:mm') : '—'}">—</td>
+            <td>
+              <span class="state ld-state"
+                    th:classappend="${log.status == 'SUCCESS'} ? 'state-success' : 'state-failed'"
+                    th:text="${log.status == 'SUCCESS'} ? #{auto.push.status.success} : #{auto.push.status.failed}">成功</span>
+            </td>
+            <td class="ld-version pr mono" th:text="${log.versionNumber != null ? 'v' + log.versionNumber : '—'}">—</td>
+            <td class="ld-proto lm mono" th:text="${log.protocol}">SFTP</td>
+            <td class="ld-index lm" th:with="ix=${log.indexNowStatus}"
+                th:text="${ix == 'SUCCESS'} ? #{auto.push.indexNow.submitted} : (${ix == 'FAILED'} ? #{auto.push.indexNow.failed} : '—')">—</td>
+            <td class="ld-dur lm mono" th:text="${log.durationMs != null ? log.durationMs + ' ms' : '—'}">—</td>
+            <td class="ld-detail lm" th:text="${log.detail != null ? log.detail : '—'}">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="list-panel" th:if="${!#lists.isEmpty(versions)}">
+    <div class="list-head">
+      <h3 th:text="#{auto.detail.versions}">版本历史</h3>
+      <span class="list-count mono" th:text="#{auto.detail.count(${#lists.size(versions)})}">共 0 个版本</span>
+    </div>
+    <div class="list-scroll">
+      <table class="url-table">
+        <thead>
+          <tr>
+            <th th:text="#{auto.th.vno}">版本</th>
+            <th th:text="#{auto.th.urls}">URL 数</th>
+            <th th:text="#{auto.th.time}">生成时间</th>
+            <th th:text="#{auto.th.actions}">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="v : ${versions}">
+            <td class="pr mono" th:text="${'v' + v.versionNumber}">v1</td>
+            <td class="lm" th:text="${v.urlCount}">0</td>
+            <td class="lm" th:text="${v.createdAt != null ? #temporals.format(v.createdAt, 'yyyy-MM-dd HH:mm') : '—'}">—</td>
+            <td>
+              <a class="link" th:href="@{/auto/{id}/download(id=${site.id}, version=${v.versionNumber})}"
+                 th:text="#{auto.action.download}">下载</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" th:if="${#lists.isEmpty(versions)}">
+    <div class="empty-ok">
+      <div class="ico">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v5l3 2"/><circle cx="12" cy="12" r="9"/></svg>
+      </div>
+      <b th:text="#{auto.detail.empty}">还没有成功版本，等第一次更新完成后再来查看。</b>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+<script th:src="@{/js/app.js}"></script>
+<script th:inline="javascript">
+(function () {
+  var form = document.getElementById("pushForm");
+  if (!form) return;
+
+  var protoSel = document.getElementById("protoSel");
+  var authSel = document.getElementById("authSel");
+  var protoInput = protoSel.querySelector("input[type=hidden]");
+  var authInput = authSel.querySelector("input[type=hidden]");
+  var authRow = form.querySelector(".js-auth-row");
+  var keyField = form.querySelector(".js-auth-key");
+  var keyOpt = authSel.querySelector("[data-value=PRIVATE_KEY]");
+  var pwdOpt = authSel.querySelector("[data-value=PASSWORD]");
+  var keyInput = form.querySelector("textarea[name=privateKey]");
+  var portInput = form.querySelector("input[name=port]");
+  var indexToggle = form.querySelector("input[name=indexNowEnabled]");
+  var indexField = form.querySelector(".js-indexnow-key");
+
+  SitemapUI.selectMenu({
+    root: protoSel,
+    button: protoSel.querySelector(".sel-btn"),
+    menu: protoSel.querySelector(".sel-menu"),
+    input: protoInput,
+    label: protoSel.querySelector(".sel-label")
+  });
+  SitemapUI.selectMenu({
+    root: authSel,
+    button: authSel.querySelector(".sel-btn"),
+    menu: authSel.querySelector(".sel-menu"),
+    input: authInput,
+    label: authSel.querySelector(".sel-label")
+  });
+
+  function chooseAuth(value) {
+    authInput.value = value;
+    var opt = value === "PRIVATE_KEY" ? keyOpt : pwdOpt;
+    authSel.querySelector(".sel-label").textContent = opt.textContent;
+    keyOpt.setAttribute("aria-selected", value === "PRIVATE_KEY" ? "true" : "false");
+    pwdOpt.setAttribute("aria-selected", value === "PASSWORD" ? "true" : "false");
+  }
+
+  function syncAuth() {
+    var sftp = protoInput.value === "SFTP";
+    authRow.hidden = !sftp;
+    if (!sftp && authInput.value === "PRIVATE_KEY") chooseAuth("PASSWORD");
+    keyField.hidden = authInput.value !== "PRIVATE_KEY";
+  }
+
+  function syncPort() {
+    var port = portInput.value.trim();
+    if (protoInput.value === "SFTP" && port === "21") portInput.value = "22";
+    else if (protoInput.value !== "SFTP" && port === "22") portInput.value = "21";
+  }
+
+  function syncIndex() {
+    indexField.hidden = !indexToggle.checked;
+  }
+
+  protoInput.addEventListener("change", function () { syncAuth(); syncPort(); });
+  authInput.addEventListener("change", syncAuth);
+  indexToggle.addEventListener("change", syncIndex);
+  syncAuth();
+  syncIndex();
+
+  var needPassword = /*[[${pushConfig == null || !pushConfig.hasPassword}]]*/ true;
+  var needPrivateKey = /*[[${pushConfig == null || !pushConfig.hasPrivateKey}]]*/ true;
+  var msgs = {
+    host: /*[[#{auto.push.err.host}]]*/ '请填写服务器地址',
+    port: /*[[#{auto.push.err.port}]]*/ '端口需在 1-65535 之间',
+    user: /*[[#{auto.push.err.user}]]*/ '请填写用户名',
+    file: /*[[#{auto.push.err.file}]]*/ '文件名不合法',
+    password: /*[[#{auto.push.err.password}]]*/ '请输入密码',
+    key: /*[[#{auto.push.err.key}]]*/ '请粘贴私钥内容',
+    indexKey: /*[[#{auto.push.err.indexKey}]]*/ 'IndexNow key 需为 8-128 位十六进制字符'
+  };
+
+  SitemapUI.formGuard({
+    form: form,
+    rules: [
+      { input: form.querySelector("input[name=host]"), error: document.getElementById("hostErr"),
+        test: function (v) { return v.length > 0 && !/[\s/:]/.test(v); }, message: msgs.host },
+      { input: portInput, error: document.getElementById("portErr"),
+        test: function (v) { return /^\d+$/.test(v) && Number(v) >= 1 && Number(v) <= 65535; },
+        message: msgs.port },
+      { input: form.querySelector("input[name=username]"), error: document.getElementById("userErr"),
+        test: function (v) { return v.length > 0; }, message: msgs.user },
+      { input: form.querySelector("input[name=sitemapFileName]"), error: document.getElementById("fileErr"),
+        test: function (v) {
+          return v.length === 0 || (/^[A-Za-z0-9._-]{1,255}$/.test(v) && v.indexOf("..") < 0);
+        }, message: msgs.file },
+      { input: form.querySelector("input[name=password]"), error: document.getElementById("pwdErr"),
+        when: function () { return authInput.value === "PASSWORD"; },
+        test: function (v) { return v.length > 0 || !needPassword; }, message: msgs.password },
+      { input: keyInput, error: document.getElementById("keyErr"),
+        when: function () { return authInput.value === "PRIVATE_KEY"; },
+        test: function (v) { return v.length > 0 || !needPrivateKey; }, message: msgs.key },
+      { input: form.querySelector("input[name=indexNowKey]"), error: document.getElementById("inKeyErr"),
+        when: function () { return indexToggle.checked; },
+        test: function (v) { return /^[0-9a-fA-F]{8,128}$/.test(v); }, message: msgs.indexKey }
+    ]
+  });
+
+  var pushNow = document.querySelector("form.js-push-now");
+  if (pushNow) {
+    pushNow.addEventListener("submit", function (e) {
+      e.preventDefault();
+      SitemapUI.confirm({
+        title: /*[[#{auto.push.confirm.run.title}]]*/ '立即推送',
+        message: /*[[#{auto.push.confirm.run}]]*/ '确定把最新版本的站点地图推送到服务器吗？',
+        confirmText: /*[[#{auto.push.run}]]*/ '立即推送',
+        cancelText: /*[[#{common.cancel}]]*/ '取消'
+      }).then(function (ok) {
+        if (ok) pushNow.submit();
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>

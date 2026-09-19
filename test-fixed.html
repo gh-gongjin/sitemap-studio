@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>站点地图生成器功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            background: white;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-left: 5px solid #4CAF50;
+        }
+        .test-section.error {
+            border-left-color: #f44336;
+        }
+        .test-section.warning {
+            border-left-color: #ff9800;
+        }
+        h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            min-width: 150px;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .download-btn {
+            background: #2196F3;
+        }
+        .preview-btn {
+            background: #FF9800;
+        }
+        .test-btn {
+            background: #9C27B0;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            display: none;
+        }
+        .result.show {
+            display: block;
+        }
+        .server-info {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        .url-input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .test-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .test-item:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+        .test-item i {
+            font-size: 24px;
+            margin-bottom: 10px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 站点地图生成器功能测试</h1>
+    
+    <div class="server-info">
+        <h3>📋 服务器信息</h3>
+        <p><strong>访问地址：</strong> <a href="http://localhost:8088" target="_blank" id="serverUrl">http://localhost:8088</a></p>
+        <p><strong>状态：</strong> <span id="serverStatus">正在检查...</span></p>
+        <p><strong>测试网址：</strong> <input type="text" id="testUrl" class="url-input" value="https://www.baidu.com"></p>
+    </div>
+    
+    <!-- 测试1: 服务器连通性 -->
+    <div class="test-section">
+        <h2>1. 🖥️ 服务器连通性测试</h2>
+        <div id="connectStatus" class="status info">正在检查服务器状态...</div>
+        <button onclick="testConnectivity()">测试连接</button>
+        <button onclick="testHealth()">测试健康检查</button>
+        <div id="connectResult" class="result"></div>
+    </div>
+    
+    <!-- 测试2: 首页功能 -->
+    <div class="test-section">
+        <h2>2. 🏠 首页功能测试</h2>
+        <button onclick="testHomePage()">测试首页加载</button>
+        <button onclick="openHomePage()">打开首页</button>
+        <div id="homeResult" class="result"></div>
+    </div>
+    
+    <!-- 测试3: 生成功能 -->
+    <div class="test-section">
+        <h2>3. ⚡ 生成功能测试</h2>
+        <button onclick="testGenerate()">测试生成站点地图</button>
+        <button onclick="openGenerate()">打开生成页面</button>
+        <div id="generateResult" class="result"></div>
+    </div>
+    
+    <!-- 测试4: 下载功能 -->
+    <div class="test-section">
+        <h2>4. 📥 下载功能测试</h2>
+        <p>这是之前失败的功能，现在应该可以正常工作了：</p>
+        <button onclick="testDownload()" class="download-btn">测试下载功能</button>
+        <button onclick="openDownload()" class="download-btn">直接下载</button>
+        <div id="downloadResult" class="result"></div>
+    </div>
+    
+    <!-- 测试5: 预览功能 -->
+    <div class="test-section">
+        <h2>5. 👁️ 预览功能测试</h2>
+        <p>这也是之前失败的功能：</p>
+        <button onclick="testPreview()" class="preview-btn">测试预览功能</button>
+        <button onclick="openPreview()" class="preview-btn">直接预览</button>
+        <div id="previewResult" class="result"></div>
+    </div>
+    
+    <!-- 快速测试 -->
+    <div class="test-section">
+        <h2>6. 🚀 快速测试</h2>
+        <p>点击以下测试常用网站：</p>
+        <div class="test-grid">
+            <div class="test-item" onclick="testWithUrl('https://www.baidu.com')">
+                <div>🔍</div>
+                <strong>百度</strong>
+            </div>
+            <div class="test-item" onclick="testWithUrl('https://github.com')">
+                <div>💻</div>
+                <strong>GitHub</strong>
+            </div>
+            <div class="test-item" onclick="testWithUrl('https://www.google.com')">
+                <div>🌐</div>
+                <strong>Google</strong>
+            </div>
+            <div class="test-item" onclick="testWithUrl('https://example.com')">
+                <div>📄</div>
+                <strong>Example</strong>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const SERVER_URL = 'http://localhost:8088';
+        
+        // 检查服务器状态
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(`${SERVER_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('serverStatus').innerHTML = '✅ 运行正常';
+                    document.getElementById('serverStatus').className = 'status success';
+                    return true;
+                }
+            } catch (error) {
+                document.getElementById('serverStatus').innerHTML = '❌ 无法连接';
+                document.getElementById('serverStatus').className = 'status error';
+            }
+            return false;
+        }
+        
+        // 测试连通性
+        async function testConnectivity() {
+            showResult('connectResult', '正在测试服务器连通性...', 'info');
+            const isConnected = await checkServerStatus();
+            if (isConnected) {
+                showResult('connectResult', '✅ 服务器连接正常！', 'success');
+            } else {
+                showResult('connectResult', '❌ 服务器连接失败，请确保服务器已启动', 'error');
+            }
+        }
+        
+        // 测试健康检查
+        async function testHealth() {
+            showResult('connectResult', '正在测试健康检查接口...', 'info');
+            try {
+                const response = await fetch(`${SERVER_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json();
+                    showResult('connectResult', `✅ 健康检查通过！状态: ${data.status}, 时间: ${data.time}`, 'success');
+                } else {
+                    showResult('connectResult', `❌ 健康检查失败: HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult('connectResult', `❌ 健康检查失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 测试首页
+        async function testHomePage() {
+            showResult('homeResult', '正在测试首页加载...', 'info');
+            try {
+                const response = await fetch(SERVER_URL);
+                const text = await response.text();
+                if (text.includes('站点地图生成器')) {
+                    showResult('homeResult', '✅ 首页加载成功！包含正确的标题', 'success');
+                } else {
+                    showResult('homeResult', '⚠️ 首页加载但内容可能不正确', 'warning');
+                }
+            } catch (error) {
+                showResult('homeResult', `❌ 首页加载失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 打开首页
+        function openHomePage() {
+            window.open(SERVER_URL, '_blank');
+            showResult('homeResult', '✅ 已在新标签页打开首页', 'success');
+        }
+        
+        // 测试生成功能
+        async function testGenerate() {
+            const url = document.getElementById('testUrl').value.trim();
+            if (!url) {
+                alert('请输入测试网址');
+                return;
+            }
+            
+            showResult('generateResult', '正在测试生成功能...', 'info');
+            
+            const formData = new FormData();
+            formData.append('url', url);
+            
+            try {
+                const response = await fetch(`${SERVER_URL}/generate`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    if (text.includes('生成成功')) {
+                        showResult('generateResult', '✅ 生成功能测试成功！', 'success');
+                    } else {
+                        showResult('generateResult', '⚠️ 生成请求成功但响应内容异常', 'warning');
+                    }
+                } else {
+                    showResult('generateResult', `❌ 生成失败: HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult('generateResult', `❌ 生成失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 打开生成页面
+        function openGenerate() {
+            window.open(SERVER_URL, '_blank');
+            showResult('generateResult', '✅ 已打开生成页面', 'success');
+        }
+        
+        // 测试下载功能（之前失败的功能）
+        async function testDownload() {
+            const url = document.getElementById('testUrl').value.trim() || 'https://www.baidu.com';
+            
+            showResult('downloadResult', '正在测试下载功能...', 'info');
+            
+            try {
+                const downloadUrl = `${SERVER_URL}/download?url=${encodeURIComponent(url)}`;
+                const response = await fetch(downloadUrl);
+                
+                if (response.ok && response.headers.get('content-type')?.includes('application/xml')) {
+                    showResult('downloadResult', '✅ 下载功能测试成功！服务器返回XML文件', 'success');
+                    
+                    // 尝试实际下载
+                    setTimeout(() => {
+                        window.open(downloadUrl, '_blank');
+                        showResult('downloadResult', '✅ 下载功能测试成功！已开始下载文件', 'success');
+                    }, 500);
+                } else {
+                    showResult('downloadResult', `❌ 下载失败: 服务器返回异常`, 'error');
+                }
+            } catch (error) {
+                showResult('downloadResult', `❌ 下载失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 直接下载
+        function openDownload() {
+            const url = document.getElementById('testUrl').value.trim() || 'https://www.baidu.com';
+            const downloadUrl = `${SERVER_URL}/download?url=${encodeURIComponent(url)}`;
+            window.open(downloadUrl, '_blank');
+            showResult('downloadResult', '✅ 已开始下载站点地图文件', 'success');
+        }
+        
+        // 测试预览功能（之前失败的功能）
+        async function testPreview() {
+            const url = document.getElementById('testUrl').value.trim() || 'https://www.baidu.com';
+            
+            showResult('previewResult', '正在测试预览功能...', 'info');
+            
+            try {
+                const previewUrl = `${SERVER_URL}/preview?url=${encodeURIComponent(url)}`;
+                const response = await fetch(previewUrl);
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    if (text.includes('站点地图预览')) {
+                        showResult('previewResult', '✅ 预览功能测试成功！', 'success');
+                    } else {
+                        showResult('previewResult', '⚠️ 预览请求成功但内容可能不正确', 'warning');
+                    }
+                } else {
+                    showResult('previewResult', `❌ 预览失败: HTTP ${response.status}`, 'error');
+                }
+            } catch (error) {
+                showResult('previewResult', `❌ 预览失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 直接预览
+        function openPreview() {
+            const url = document.getElementById('testUrl').value.trim() || 'https://www.baidu.com';
+            const previewUrl = `${SERVER_URL}/preview?url=${encodeURIComponent(url)}`;
+            window.open(previewUrl, '_blank');
+            showResult('previewResult', '✅ 已在新标签页打开预览', 'success');
+        }
+        
+        // 使用指定URL测试
+        function testWithUrl(url) {
+            document.getElementById('testUrl').value = url;
+            showResult('connectResult', `已设置测试网址: ${url}`, 'info');
+            
+            // 自动测试所有功能
+            setTimeout(() => testConnectivity(), 100);
+            setTimeout(() => testGenerate(), 300);
+            setTimeout(() => testDownload(), 500);
+            setTimeout(() => testPreview(), 700);
+        }
+        
+        // 显示结果
+        function showResult(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.className = 'result show';
+            element.innerHTML = message;
+            
+            // 根据类型设置样式
+            if (type === 'success') {
+                element.style.backgroundColor = '#d4edda';
+                element.style.color = '#155724';
+                element.style.borderColor = '#c3e6cb';
+            } else if (type === 'error') {
+                element.style.backgroundColor = '#f8d7da';
+                element.style.color = '#721c24';
+                element.style.borderColor = '#f5c6cb';
+            } else if (type === 'warning') {
+                element.style.backgroundColor = '#fff3cd';
+                element.style.color = '#856404';
+                element.style.borderColor = '#ffeaa7';
+            } else {
+                element.style.backgroundColor = '#d1ecf1';
+                element.style.color = '#0c5460';
+                element.style.borderColor = '#bee5eb';
+            }
+        }
+        
+        // 页面加载时自动检查
+        window.onload = function() {
+            checkServerStatus();
+            
+            // 每10秒检查一次状态
+            setInterval(checkServerStatus, 10000);
+            
+            // 5秒后自动运行基本测试
+            setTimeout(() => {
+                if (document.getElementById('serverStatus').innerHTML.includes('运行正常')) {
+                    testConnectivity();
+                    setTimeout(testHomePage, 500);
+                }
+            }, 5000);
+        };
+    </script>
+</body>
+</html>

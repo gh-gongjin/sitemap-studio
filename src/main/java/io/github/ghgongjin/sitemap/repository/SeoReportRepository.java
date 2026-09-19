@@ -1,0 +1,21 @@
+package io.github.ghgongjin.sitemap.repository;
+
+import io.github.ghgongjin.sitemap.entity.SeoReport;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * @ClassName SeoReportRepository
+ * @Description SEO 报告仓储
+ * @Author gj
+ * @Date 2026/9/18
+ * @Version 1.0
+ */
+public interface SeoReportRepository extends JpaRepository<SeoReport, Long> {
+
+    Optional<SeoReport> findByTaskId(String taskId);
+
+    List<SeoReport> findTop20ByOrderByCreatedAtDesc();
+}

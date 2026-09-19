@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.help}">Sitemap Studio · 帮助</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='help', langZh=@{/(lang='zh-CN')}, langEn=@{/(lang='en')})}"></header>
+
+<main class="rise">
+  <div class="prose-head">
+    <span class="tag" th:text="#{help.tag}">帮助</span>
+    <h2 th:text="#{help.title}">如何使用 Sitemap Studio</h2>
+  </div>
+  <div class="prose-grid">
+    <div class="panel">
+      <ol class="steps-list">
+        <li th:text="#{help.li1}">输入完整网址（含 http/https），内网地址会被拒绝。</li>
+        <li th:text="#{help.li2}">需要图片或视频收录时，在设置里打开对应开关。</li>
+        <li th:text="#{help.li3}">抓取时在实时看板查看已处理和用时。</li>
+        <li th:text="#{help.li4}">完成后下载 XML，结果按任务保存，可重复下载。</li>
+      </ol>
+    </div>
+    <div class="panel">
+      <h3 th:text="#{help.limits}">限制</h3>
+      <ul class="bullets">
+        <li th:text="#{help.lim1}">最多 500 个 URL，超出后停止发现新页面。</li>
+        <li th:text="#{help.lim2}">只在输入网址的域名范围内抓取，不做跨域跟随。</li>
+        <li th:text="#{help.lim3}">私网 IP、localhost 和内网域名会被安全策略拒绝。</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

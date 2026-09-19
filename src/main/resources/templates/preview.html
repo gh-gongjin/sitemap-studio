@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.preview}">Sitemap Studio · 站点地图已生成</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='preview', langZh=(${taskId != null} ? @{/preview(taskId=${taskId}, lang='zh-CN')} : @{/preview(url=${url}, includeImages=${includeImages}, includeVideos=${includeVideos}, includeNews=${includeNews}, lang='zh-CN')}), langEn=(${taskId != null} ? @{/preview(taskId=${taskId}, lang='en')} : @{/preview(url=${url}, includeImages=${includeImages}, includeVideos=${includeVideos}, includeNews=${includeNews}, lang='en')}))}"></header>
+
+<main class="rise">
+  <div class="done-head">
+    <span class="tag tag-ok">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+      <span th:text="#{preview.tag}">抓取完成</span>
+    </span>
+    <h2 th:text="#{preview.title}">站点地图已生成</h2>
+    <div class="meta-chips">
+      <span class="mchip"><i th:text="#{preview.site}">网站</i><b class="mono info-value" th:text="${url}"></b></span>
+      <span class="mchip" th:if="${taskId != null}"><i th:text="#{preview.task}">任务</i><b class="mono" th:text="${taskId}"></b></span>
+    </div>
+  </div>
+
+  <div class="panel done-panel">
+    <div class="meters">
+      <div class="meter"><b th:text="${urlCount}">0</b><span th:text="#{preview.m.urls}">URL 数</span></div>
+      <div class="meter"><b th:text="${imageCount}">0</b><span th:text="#{preview.m.images}">图片条目</span></div>
+      <div class="meter"><b th:text="${videoCount}">0</b><span th:text="#{preview.m.videos}">视频条目</span></div>
+      <div class="meter"><b th:text="${newsCount}">0</b><span th:text="#{preview.m.news}">新闻条目</span></div>
+      <div class="meter"><b th:text="${#strings.isEmpty(lastmod)} ? '—' : ${lastmod}">—</b><span th:text="#{preview.m.lastmod}">最后更新</span></div>
+    </div>
+    <div class="opt-strip">
+      <span th:text="#{preview.include.images}">包含图片：</span>
+      <span class="info-value" th:text="${includeImages} ? #{common.yes} : #{common.no}">否</span>
+      <span th:text="#{preview.include.videos}">包含视频：</span>
+      <span class="info-value" th:text="${includeVideos} ? #{common.yes} : #{common.no}">否</span>
+      <span th:text="#{preview.include.news}">包含新闻：</span>
+      <span class="info-value" th:text="${includeNews} ? #{common.yes} : #{common.no}">否</span>
+    </div>
+    <p class="note" th:text="#{preview.note}">结果按任务保存，下载和预览不会重新抓取。</p>
+    <div class="actions center">
+      <a class="btn primary"
+         th:href="${taskId != null} ? @{/download(taskId=${taskId})} : @{/download(url=${url}, includeImages=${includeImages}, includeVideos=${includeVideos}, includeNews=${includeNews})}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+        <span th:text="#{preview.download}">下载 sitemap.xml</span>
+      </a>
+      <button class="btn" type="button" id="copyBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span th:text="#{preview.copy}">复制 XML</span>
+      </button>
+      <a class="btn" th:if="${reportAvailable}" th:href="@{/report/{id}(id=${taskId})}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 5-7"/></svg>
+        <span th:text="#{preview.report}">查看 SEO 健康报告</span>
+      </a>
+      <a class="btn" th:href="@{/}">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+        <span th:text="#{preview.regen}">重新生成</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="list-panel">
+    <div class="list-head">
+      <h3 th:text="#{preview.list.title}">地址列表</h3>
+      <span class="list-count mono" th:text="#{preview.list.count(${urlCount})}">共 0 条</span>
+    </div>
+    <div class="list-scroll">
+      <table class="url-table">
+        <thead>
+          <tr>
+            <th th:text="#{preview.th.url}">URL</th>
+            <th th:text="#{preview.th.lastmod}">最后修改</th>
+            <th th:text="#{preview.th.priority}">优先级</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="e : ${urlEntries}">
+            <td class="u" th:text="${e.url}"></td>
+            <td class="lm" th:text="${#strings.isEmpty(e.lastmod)} ? '—' : ${e.lastmod}">—</td>
+            <td class="pr" th:text="${#strings.isEmpty(e.priority)} ? '—' : ${e.priority}">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-head">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <b>sitemap.xml</b>
+      <span class="code-meta">
+        <span th:text="#{preview.xmlMeta(${urlCount}, ${#strings.isEmpty(lastmod)} ? '—' : ${lastmod})}">0 个 URL</span><span th:if="${includeImages}" th:text="#{preview.xmlMeta.images}"></span><span th:if="${includeVideos}" th:text="#{preview.xmlMeta.videos}"></span><span th:if="${includeNews}" th:text="#{preview.xmlMeta.news}"></span>
+      </span>
+    </div>
+    <pre class="code"><code class="language-xml" id="xmlBox" th:text="${sitemapXml}"></code></pre>
+  </div>
+
+  <div class="steps">
+    <div class="step"><b>01</b><h4 th:text="#{preview.s1.t}">放到根目录</h4><p th:text="#{preview.s1.d}">把 sitemap.xml 上传到网站根目录。</p></div>
+    <div class="step"><b>02</b><h4 th:text="#{preview.s2.t}">提交给搜索引擎</h4><p th:text="#{preview.s2.d}">在 Google Search Console、百度站长平台、Bing 逐一提交。</p></div>
+    <div class="step"><b>03</b><h4 th:text="#{preview.s3.t}">保持更新</h4><p th:text="#{preview.s3.d}">站点结构变化后重新生成并覆盖旧文件。</p></div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+
+<script th:src="@{/js/app.js}"></script>
+<script th:inline="javascript">
+(function () {
+  var T = {
+    copied: /*[[#{preview.copied}]]*/ '',
+    fail: /*[[#{preview.copy.fail}]]*/ ''
+  };
+
+  var box = document.getElementById('xmlBox');
+  var raw = box ? box.textContent : '';
+  if (box) {
+    box.innerHTML = SitemapUI.highlight(raw);
+  }
+
+  var copyBtn = document.getElementById('copyBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function () {
+      SitemapUI.copyText(raw, T.copied, T.fail);
+    });
+  }
+})();
+</script>
+</body>
+</html>

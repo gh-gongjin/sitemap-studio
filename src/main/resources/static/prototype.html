@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title>Sitemap Studio — Prototype v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07080a;
+    --panel: #0f1116;
+    --panel2: #14171d;
+    --line: rgba(255, 255, 255, .07);
+    --line2: rgba(255, 255, 255, .13);
+    --text: #eef1f6;
+    --muted: #8f97a6;
+    --dim: #5f6775;
+    --accent: #c9f651;
+    --accent-ink: #0b0d06;
+    --ok: #5ee08c;
+    --bad: #ff6b6b;
+    --font-display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
+    --font-body: "Instrument Sans", "Noto Sans SC", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::selection { background: rgba(201,246,81,.28); }
+  .mono { font-family: var(--font-mono); }
+  button, input { font: inherit; }
+  .bg-fx, .grid-fx, .noise-fx { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+  .bg-fx {
+    background:
+      radial-gradient(620px 420px at 12% -6%, rgba(201, 246, 81, .13), transparent 62%),
+      radial-gradient(720px 480px at 88% 6%, rgba(94, 224, 140, .09), transparent 62%),
+      radial-gradient(900px 620px at 50% 112%, rgba(90, 120, 255, .07), transparent 62%);
+  }
+  .grid-fx {
+    background-image:
+      linear-gradient(rgba(255,255,255,.032) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.032) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(circle at 50% 0%, black, transparent 72%);
+    -webkit-mask-image: radial-gradient(circle at 50% 0%, black, transparent 72%);
+  }
+  .noise-fx {
+    opacity: .04;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- nav ---------- */
+  .nav {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(7, 8, 10, .74);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-in {
+    max-width: 1080px; margin: 0 auto; padding: 13px 24px;
+    display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; color: inherit; }
+  .mark {
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    display: grid; place-items: center;
+    background: rgba(201, 246, 81, .12);
+    border: 1px solid rgba(201, 246, 81, .32);
+    color: var(--accent);
+  }
+  .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 16.5px; color: #fff; letter-spacing: -.01em; line-height: 1; }
+  .brand-sub { display: block; margin-top: 3px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+  .nav-right { display: flex; align-items: center; gap: 22px; }
+  .nav-links { display: flex; gap: 22px; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color .15s; }
+  .nav-links a:hover, .nav-links a.active { color: #fff; }
+  .seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.05); }
+  .seg button {
+    border: 0; background: transparent; color: var(--muted);
+    font-size: 12.5px; font-weight: 600; padding: 6px 11px; border-radius: 8px; cursor: pointer; transition: all .15s;
+  }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+
+  /* ---------- prototype jump bar ---------- */
+  .proto {
+    max-width: 1080px; margin: 18px auto 0; padding: 10px 14px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    border: 1px dashed rgba(201, 246, 81, .35);
+    border-radius: 12px;
+    background: rgba(201, 246, 81, .045);
+    position: relative; z-index: 1;
+  }
+  .proto-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .proto-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .proto-btns button {
+    border: 1px solid var(--line2); background: rgba(255,255,255,.03); color: #c3cad8;
+    font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; transition: all .15s;
+  }
+  .proto-btns button:hover { background: rgba(255,255,255,.09); color: #fff; }
+  .proto-btns button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .proto-hint { margin-left: auto; color: var(--dim); font-size: 12px; }
+
+  /* ---------- layout ---------- */
+  main { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 0 24px 72px; }
+  .screen { display: none; }
+  .screen.on { display: block; animation: rise .45s cubic-bezier(.2, .7, .2, 1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- home ---------- */
+  .hero { text-align: center; padding: 54px 0 0; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 7px 14px; border-radius: 999px;
+    border: 1px solid var(--line2); background: rgba(255,255,255,.03);
+    color: var(--muted); font-size: 13px;
+  }
+  .badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  .hero h1 {
+    margin: 22px auto 14px; max-width: 20ch;
+    font-family: var(--font-display); font-weight: 600;
+    font-size: clamp(38px, 5.6vw, 62px); line-height: 1.06; letter-spacing: -.02em;
+    background: linear-gradient(180deg, #ffffff 24%, #97a0b2);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lede { max-width: 58ch; margin: 0 auto; color: var(--muted); font-size: 16.5px; line-height: 1.65; }
+  .composer { max-width: 720px; margin: 34px auto 0; }
+  .urlbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px; border-radius: 16px;
+    background: var(--panel2); border: 1px solid var(--line2);
+    box-shadow: 0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .urlbar:focus-within { border-color: rgba(201,246,81,.45); box-shadow: 0 0 0 4px rgba(201,246,81,.10), 0 24px 60px rgba(0,0,0,.5); }
+  .urlbar-ico { flex: none; margin-left: 8px; color: var(--dim); }
+  .urlbar input {
+    flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+    color: var(--text); font-size: 16px; font-weight: 500; padding: 12px 4px;
+  }
+  .urlbar input::placeholder { color: #5c6472; }
+  .go {
+    display: inline-flex; align-items: center; gap: 8px; flex: none;
+    border: 0; border-radius: 11px; padding: 13px 20px;
+    background: var(--accent); color: var(--accent-ink);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: transform .15s, filter .15s;
+  }
+  .go:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .go svg { transition: transform .15s; }
+  .go:hover svg { transform: translateX(2px); }
+  .composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .ghost {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 0; background: none; color: var(--muted);
+    font-size: 13.5px; cursor: pointer; padding: 6px 4px; transition: color .15s;
+  }
+  .ghost:hover { color: #fff; }
+  .ghost svg { transition: transform .2s; }
+  .ghost.open svg.chev { transform: rotate(180deg); }
+  .chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .chips-label { color: var(--dim); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+  .chip {
+    border: 1px solid var(--line); background: rgba(255,255,255,.03); color: #c3cad8;
+    font-family: var(--font-mono); font-size: 12px; padding: 7px 11px; border-radius: 999px; cursor: pointer;
+    transition: all .15s;
+  }
+  .chip:hover { border-color: var(--line2); background: rgba(255,255,255,.08); color: #fff; }
+  .chip.warn { color: #ffb0b0; border-color: rgba(255,107,107,.28); }
+  .settings {
+    display: none; margin-top: 12px; padding: 8px;
+    background: rgba(255,255,255,.025); border: 1px solid var(--line); border-radius: 14px;
+  }
+  .settings.open { display: grid; gap: 4px; animation: rise .3s ease both; }
+  .switch-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 12px; border-radius: 10px; cursor: pointer; transition: background .15s;
+  }
+  .switch-row:hover { background: rgba(255,255,255,.03); }
+  .switch-row b { display: block; font-size: 14.5px; font-weight: 600; color: var(--text); }
+  .switch-row i { display: block; margin-top: 2px; font-style: normal; font-size: 12.5px; color: var(--muted); }
+  .switch-row input { display: none; }
+  .sw { position: relative; flex: none; width: 42px; height: 24px; border-radius: 999px; background: #2a2f3a; transition: background .18s; }
+  .sw::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+    border-radius: 50%; background: #cfd6e4; transition: transform .18s, background .18s;
+  }
+  .switch-row input:checked + .sw { background: rgba(201,246,81,.9); }
+  .switch-row input:checked + .sw::after { transform: translateX(18px); background: var(--accent-ink); }
+
+  .stats { max-width: 720px; margin: 42px auto 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .stat {
+    text-align: center; padding: 20px 16px;
+    background: rgba(255,255,255,.02); border: 1px solid var(--line); border-radius: 14px;
+  }
+  .stat b { display: block; font-family: var(--font-mono); font-size: 25px; font-weight: 600; color: #fff; }
+  .stat span { display: block; margin-top: 8px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .features { max-width: 720px; margin: 16px auto 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .feature {
+    padding: 20px; border-radius: 16px; border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255,255,255,.028), rgba(255,255,255,.012));
+    transition: transform .2s, border-color .2s;
+  }
+  .feature:hover { transform: translateY(-3px); border-color: var(--line2); }
+  .fico {
+    width: 34px; height: 34px; margin-bottom: 14px; border-radius: 10px;
+    display: grid; place-items: center;
+    background: rgba(201,246,81,.12); color: var(--accent);
+  }
+  .feature h3 { margin: 0 0 6px; font-size: 15.5px; font-weight: 600; color: #fff; }
+  .feature p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+
+  /* ---------- shared bits ---------- */
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+    padding: 22px; box-shadow: 0 20px 50px rgba(0,0,0,.35);
+  }
+  .tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line2);
+    background: rgba(255,255,255,.03); color: var(--muted);
+    font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .tag-live { color: var(--accent); border-color: rgba(201,246,81,.35); background: rgba(201,246,81,.08); }
+  .tag-ok { color: var(--ok); border-color: rgba(94,224,140,.35); background: rgba(94,224,140,.08); letter-spacing: .04em; text-transform: none; }
+  .tag-bad { color: var(--bad); border-color: rgba(255,107,107,.35); background: rgba(255,107,107,.08); }
+  .pulse { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .pulse::after {
+    content: ""; position: absolute; inset: -4px; border-radius: 50%;
+    border: 1px solid var(--accent); animation: ping 1.4s ease-out infinite;
+  }
+  @keyframes ping { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.7); opacity: 0; } }
+  .dot-ok { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); animation: blink 1.6s infinite; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+  .crawl-head, .done-head, .prose-head { text-align: center; padding: 44px 0 24px; }
+  .crawl-head h2, .done-head h2, .prose-head h2 {
+    margin: 16px 0 12px;
+    font-family: var(--font-display); font-weight: 600;
+    font-size: clamp(28px, 3.6vw, 40px); letter-spacing: -.01em; color: #fff;
+  }
+  .meta-chips { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .mchip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 14px; border-radius: 999px;
+    border: 1px solid var(--line); background: rgba(255,255,255,.02);
+    font-size: 12.5px; max-width: 100%;
+  }
+  .mchip i { font-style: normal; color: var(--dim); flex: none; }
+  .mchip b { font-weight: 500; color: #dfe4ee; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
+  .meters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 20px; }
+  .meter { padding: 14px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); }
+  .meter b { display: block; font-family: var(--font-mono); font-size: 24px; font-weight: 600; color: #fff; }
+  .meter span { display: block; margin-top: 5px; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+  .note { margin: 18px 0 0; padding-top: 14px; border-top: 1px dashed var(--line); font-size: 12.5px; color: var(--dim); }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .actions.center { justify-content: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 18px; border-radius: 12px;
+    border: 1px solid var(--line2); background: rgba(255,255,255,.04); color: var(--text);
+    font-size: 14.5px; font-weight: 600; cursor: pointer; transition: all .16s;
+  }
+  .btn:hover { background: rgba(255,255,255,.09); transform: translateY(-1px); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.06); }
+
+  /* ---------- crawling ---------- */
+  .crawl-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; }
+  .prog-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .prog-status { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; min-width: 0; }
+  .spin {
+    flex: none; width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(201,246,81,.22); border-top-color: var(--accent);
+    animation: rot .8s linear infinite;
+  }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  .prog-pct { font-family: var(--font-mono); font-size: 30px; font-weight: 600; color: var(--accent); }
+  .bar { height: 8px; margin-top: 14px; border-radius: 999px; background: var(--panel2); overflow: hidden; border: 1px solid var(--line); }
+  .bar i {
+    position: relative; display: block; height: 100%; width: 0; border-radius: 999px;
+    background: linear-gradient(90deg, #c9f651, #8fe03a);
+    transition: width .28s ease; overflow: hidden;
+  }
+  .bar i::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+    animation: sweep 1.6s linear infinite;
+  }
+  @keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  .now { display: flex; align-items: center; gap: 9px; margin: 14px 0 0; min-height: 20px; }
+  .now .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aeb6c6; font-size: 13px; }
+  .feed-panel { display: flex; flex-direction: column; }
+  .feed-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .feed-head h3 { margin: 0; font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .feed { height: 396px; overflow: auto; display: grid; gap: 6px; align-content: start; }
+  .feed-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 11px; border-radius: 10px;
+    background: rgba(255,255,255,.025); border: 1px solid var(--line);
+    font-size: 12.5px; animation: slideIn .28s ease both;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .fr-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c3cad8; }
+  .fr-status { color: var(--ok); font-weight: 600; }
+  .fr-time { color: var(--dim); }
+  .feed-empty { color: var(--dim); font-size: 13px; padding: 10px 2px; }
+
+  /* ---------- done ---------- */
+  .done-panel { margin-top: 0; }
+  .list-panel {
+    margin-top: 14px; border-radius: 18px; overflow: hidden;
+    background: var(--panel); border: 1px solid var(--line);
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+  }
+  .list-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 20px; border-bottom: 1px solid var(--line);
+  }
+  .list-head h3 { margin: 0; font-size: 14px; font-weight: 600; color: #fff; }
+  .list-count { font-size: 12px; color: var(--muted); }
+  .list-scroll { max-height: 380px; overflow: auto; }
+  .url-table { width: 100%; border-collapse: collapse; }
+  .url-table th {
+    position: sticky; top: 0; z-index: 1; text-align: left;
+    padding: 11px 20px; background: #0c0e13; border-bottom: 1px solid var(--line2);
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--dim);
+    white-space: nowrap;
+  }
+  .url-table th:nth-child(2), .url-table th:nth-child(3),
+  .url-table td:nth-child(2), .url-table td:nth-child(3) { width: 1%; white-space: nowrap; }
+  .url-table td { padding: 10px 20px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+  .url-table tbody tr { transition: background .12s; }
+  .url-table tbody tr:hover { background: rgba(201,246,81,.045); }
+  .url-table tbody tr:last-child td { border-bottom: 0; }
+  .url-table .u { color: #c3cad8; word-break: break-all; }
+  .url-table .lm { color: var(--dim); }
+  .url-table .pr { color: var(--accent); }
+  .code-panel { margin-top: 14px; border-radius: 18px; overflow: hidden; background: #0b0d11; border: 1px solid var(--line); }
+  .code-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.02); }
+  .dots { display: flex; gap: 6px; flex: none; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.12); }
+  .code-head b { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: #cfd6e4; }
+  .code-meta { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .code { margin: 0; padding: 18px 20px; max-height: 320px; overflow: auto; }
+  .code code { font-family: var(--font-mono); font-size: 12.8px; line-height: 1.7; color: #8b93a3; white-space: pre; }
+  .code .t { color: #c9f651; }
+  .code .v { color: #a9b6cd; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+  .step { padding: 18px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); }
+  .step b { font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; color: var(--accent); }
+  .step h4 { margin: 10px 0 6px; font-size: 15px; font-weight: 600; color: #fff; }
+  .step p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--muted); }
+
+  /* ---------- failed ---------- */
+  .fail-card { max-width: 580px; margin: 56px auto 0; padding: 44px 32px; text-align: center; }
+  .fail-ico {
+    width: 56px; height: 56px; margin: 0 auto 18px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: rgba(255,107,107,.10); border: 1px solid rgba(255,107,107,.3); color: var(--bad);
+  }
+  .fail-card h2 { margin: 14px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 28px; color: #fff; }
+  .fail-reason { max-width: 46ch; margin: 14px auto 0; color: var(--text); font-size: 15px; line-height: 1.7; }
+  .fail-url { margin: 10px 0 0; font-size: 13px; color: #7d8698; word-break: break-all; min-height: 18px; }
+  .fail-hint { margin: 8px 0 24px; color: var(--muted); font-size: 13.5px; }
+
+  /* ---------- help / about ---------- */
+  .prose-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 14px; max-width: 920px; margin: 0 auto; }
+  .prose-grid .panel h3 { margin: 0 0 14px; font-size: 15px; font-weight: 600; color: #fff; }
+  .steps-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; counter-reset: st; }
+  .steps-list li { position: relative; padding-left: 46px; color: #c3cad8; font-size: 14.5px; line-height: 1.65; counter-increment: st; }
+  .steps-list li::before {
+    content: counter(st, decimal-leading-zero);
+    position: absolute; left: 0; top: 1px; width: 30px; height: 30px; border-radius: 9px;
+    display: grid; place-items: center;
+    font-family: var(--font-mono); font-size: 12px; color: var(--accent);
+    background: rgba(201,246,81,.10); border: 1px solid rgba(201,246,81,.25);
+  }
+  .bullets { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .bullets li { position: relative; padding-left: 20px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+  .bullets li::before { content: ""; position: absolute; left: 2px; top: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--line2); }
+  .mini-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .mini-list li { position: relative; padding-left: 24px; color: #c3cad8; font-size: 14px; line-height: 1.5; }
+  .mini-list li::before {
+    content: "→"; position: absolute; left: 0; top: 0;
+    color: var(--accent); font-family: var(--font-mono); font-size: 13px;
+  }
+  .prose-p { margin: 0 0 14px; color: var(--muted); font-size: 14.5px; line-height: 1.75; }
+  .prose-p:last-child { margin-bottom: 0; }
+
+  /* ---------- footer ---------- */
+  .foot {
+    position: relative; z-index: 1; max-width: 1080px; margin: 0 auto;
+    padding: 26px 24px 40px; border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    color: var(--dim); font-size: 12.5px;
+  }
+
+  /* ---------- toast ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; z-index: 40;
+    transform: translateX(-50%) translateY(12px);
+    padding: 11px 18px; border-radius: 12px;
+    background: #171a21; border: 1px solid var(--line2); color: var(--text);
+    font-size: 13.5px; box-shadow: 0 18px 40px rgba(0,0,0,.5);
+    opacity: 0; pointer-events: none; transition: opacity .22s, transform .22s;
+  }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 920px) {
+    .crawl-grid, .features, .stats, .steps, .prose-grid { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+    .proto-hint { display: none; }
+    .feed { height: 260px; }
+    .meters { grid-template-columns: repeat(2, 1fr); }
+    .urlbar { flex-wrap: wrap; }
+    .go { width: 100%; justify-content: center; }
+    .mchip b { max-width: 200px; }
+  }
+</style>
+</head>
+<body>
+<div class="bg-fx"></div>
+<div class="grid-fx"></div>
+<div class="noise-fx"></div>
+
+<header class="nav">
+  <div class="nav-in">
+    <a class="brand" href="#" data-jump="home">
+      <span class="mark">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2.5" width="6" height="5" rx="1.2"/>
+          <rect x="2" y="16.5" width="6" height="5" rx="1.2"/>
+          <rect x="16" y="16.5" width="6" height="5" rx="1.2"/>
+          <path d="M12 7.5v4M5 16.5v-2.5h14v2.5"/>
+        </svg>
+      </span>
+      <span>
+        <span class="brand-name">Sitemap Studio</span>
+        <span class="brand-sub" data-i18n="brandSub">XML map for search engines</span>
+      </span>
+    </a>
+    <div class="nav-right">
+      <nav class="nav-links">
+        <a href="#" data-jump="home" data-nav="home" data-i18n="navHome">首页</a>
+        <a href="#" data-jump="help" data-nav="help" data-i18n="navHelp">帮助</a>
+        <a href="#" data-jump="about" data-nav="about" data-i18n="navAbout">关于</a>
+      </nav>
+      <div class="seg" role="group" aria-label="Language">
+        <button type="button" id="langZh" class="on">中文</button>
+        <button type="button" id="langEn">EN</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="proto">
+  <span class="proto-tag" data-i18n="protoLabel">原型跳转</span>
+  <div class="proto-btns">
+    <button type="button" data-jump="home" data-i18n="jHome">首页</button>
+    <button type="button" data-jump="crawling" data-i18n="jCrawl">抓取中</button>
+    <button type="button" data-jump="done" data-i18n="jDone">抓取完成</button>
+    <button type="button" data-jump="failed" data-i18n="jFail">抓取失败</button>
+    <button type="button" data-jump="help" data-i18n="jHelp">帮助</button>
+    <button type="button" data-jump="about" data-i18n="jAbout">关于</button>
+  </div>
+  <span class="proto-hint" data-i18n="protoHint">或从首页提交网址，播放完整抓取动画</span>
+</div>
+
+<main>
+  <!-- ============ HOME ============ -->
+  <section id="home" class="screen on">
+    <div class="hero">
+      <span class="badge"><i></i><span data-i18n="heroBadge">免费 · 免注册 · 最多 500 个 URL</span></span>
+      <h1 data-i18n="heroTitle">让搜索引擎看见你的每一个页面</h1>
+      <p class="lede" data-i18n="heroLede">输入网址，几十秒内生成标准 XML 站点地图。实时看板显示已发现、已加入的 URL，完成后一键下载。</p>
+    </div>
+
+    <form class="composer" id="genForm" autocomplete="off">
+      <div class="urlbar">
+        <svg class="urlbar-ico" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.1 0l2.9-2.9a5 5 0 0 0-7.1-7.1L11.5 4.4"/>
+          <path d="M14 11a5 5 0 0 0-7.1 0L4 13.9a5 5 0 0 0 7.1 7.1l1.4-1.4"/>
+        </svg>
+        <input id="url" name="url" type="text" data-i18n-ph="urlPh" placeholder="https://your-domain.com" value="https://www.example.com" required>
+        <button class="go" type="submit">
+          <span data-i18n="generate">生成站点地图</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+      <div class="composer-foot">
+        <button class="ghost" type="button" id="toggleSettings">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+          </svg>
+          <span data-i18n="settingsLabel">设置</span>
+          <svg class="chev" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="chips">
+          <span class="chips-label" data-i18n="tryLabel">试试</span>
+          <button class="chip" type="button" data-url="https://www.example.com">example.com</button>
+          <button class="chip" type="button" data-url="https://github.com">github.com</button>
+          <button class="chip" type="button" data-url="https://www.baidu.com">baidu.com</button>
+          <button class="chip warn" type="button" data-url="http://127.0.0.1/">127.0.0.1</button>
+        </div>
+      </div>
+      <div class="settings" id="settings">
+        <label class="switch-row">
+          <span class="sw-text">
+            <b data-i18n="optImages">包含图片站点地图</b>
+            <i data-i18n="optImagesD">为每个页面写入 image:image 条目</i>
+          </span>
+          <input type="checkbox" id="includeImages">
+          <span class="sw"></span>
+        </label>
+        <label class="switch-row">
+          <span class="sw-text">
+            <b data-i18n="optVideos">包含视频站点地图</b>
+            <i data-i18n="optVideosD">为每个页面写入 video:video 条目</i>
+          </span>
+          <input type="checkbox" id="includeVideos">
+          <span class="sw"></span>
+        </label>
+      </div>
+    </form>
+
+    <div class="stats">
+      <div class="stat"><b>500</b><span data-i18n="statLimit">URL 上限</span></div>
+      <div class="stat"><b>XML</b><span data-i18n="statFormat">标准格式</span></div>
+      <div class="stat"><b>0</b><span data-i18n="statSignup">注册步骤</span></div>
+    </div>
+
+    <div class="features">
+      <article class="feature">
+        <span class="fico">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>
+          </svg>
+        </span>
+        <h3 data-i18n="f1t">同域智能抓取</h3>
+        <p data-i18n="f1d">遵循 robots.txt，只在同一域名下发现链接，逐跳校验重定向。</p>
+      </article>
+      <article class="feature">
+        <span class="fico">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 20h18M6 20V10M12 20V4M18 20v-7"/>
+          </svg>
+        </span>
+        <h3 data-i18n="f2t">实时抓取看板</h3>
+        <p data-i18n="f2d">已发现、已加入、用时和最近抓取的 URL 全程可见。</p>
+      </article>
+      <article class="feature">
+        <span class="fico">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>
+          </svg>
+        </span>
+        <h3 data-i18n="f3t">任务制下载</h3>
+        <p data-i18n="f3d">结果保存在任务里，下载和预览不会重新抓取，媒体选项不会丢。</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ CRAWLING ============ -->
+  <section id="crawling" class="screen">
+    <div class="crawl-head">
+      <span class="tag tag-live"><span class="pulse"></span><span data-i18n="crawlTag">抓取中</span></span>
+      <h2 data-i18n="crawlTitle">正在扫描站点</h2>
+      <div class="meta-chips">
+        <span class="mchip"><i data-i18n="jSite">网站</i><b class="mono" id="crawlSite"></b></span>
+        <span class="mchip"><i data-i18n="jTask">任务</i><b class="mono" id="crawlTask"></b></span>
+      </div>
+    </div>
+    <div class="crawl-grid">
+      <div class="panel">
+        <div class="prog-top">
+          <div class="prog-status"><span class="spin"></span><span id="progStatus" data-i18n="crawlConnecting">正在连接并发现页面…</span></div>
+          <b class="prog-pct" id="progPct">0%</b>
+        </div>
+        <div class="bar"><i id="barFill"></i></div>
+        <div class="now"><span class="mono" id="nowUrl"></span></div>
+        <div class="meters">
+          <div class="meter"><b id="mFound">0</b><span data-i18n="mFound">已发现</span></div>
+          <div class="meter"><b id="mAdded">0</b><span data-i18n="mAdded">已加入</span></div>
+          <div class="meter"><b>500</b><span data-i18n="mLimit">上限</span></div>
+          <div class="meter"><b id="mTime">0s</b><span data-i18n="mTime">用时</span></div>
+        </div>
+        <p class="note" data-i18n="crawlNote">这是原型动画，约 4 秒完成。</p>
+      </div>
+      <div class="panel feed-panel">
+        <div class="feed-head">
+          <h3 data-i18n="feedTitle">最近发现</h3>
+          <span class="tag tag-ok"><span class="dot-ok"></span><span data-i18n="feedLive">实时</span></span>
+        </div>
+        <div class="feed" id="feed"><p class="feed-empty" data-i18n="feedEmpty">等待第一个 URL…</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DONE ============ -->
+  <section id="done" class="screen">
+    <div class="done-head">
+      <span class="tag tag-ok">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <span data-i18n="doneTag">抓取完成</span>
+      </span>
+      <h2 data-i18n="doneTitle">站点地图已生成</h2>
+      <div class="meta-chips">
+        <span class="mchip"><i data-i18n="jSite">网站</i><b class="mono" id="doneSite"></b></span>
+        <span class="mchip"><i data-i18n="jTask">任务</i><b class="mono" id="doneTask"></b></span>
+      </div>
+    </div>
+    <div class="panel done-panel">
+      <div class="meters">
+        <div class="meter"><b id="dUrls">0</b><span data-i18n="dUrls">URL 数</span></div>
+        <div class="meter"><b id="dTime">0s</b><span data-i18n="dTime">用时</span></div>
+        <div class="meter"><b id="dImg">0</b><span data-i18n="dImg">图片条目</span></div>
+        <div class="meter"><b id="dVid">0</b><span data-i18n="dVid">视频条目</span></div>
+      </div>
+      <p class="note" data-i18n="doneNote">结果保存在本任务，下载不会重新抓取。</p>
+      <div class="actions center">
+        <button class="btn primary" id="dlBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+          <span data-i18n="dlBtn">下载 sitemap.xml</span>
+        </button>
+        <button class="btn" id="copyBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          <span data-i18n="copyBtn">复制 XML</span>
+        </button>
+        <button class="btn" data-jump="home">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+          <span data-i18n="regen">重新生成</span>
+        </button>
+      </div>
+    </div>
+    <div class="list-panel">
+      <div class="list-head">
+        <h3 data-i18n="listTitle">已发现的 URL</h3>
+        <span class="list-count mono" id="listCount"></span>
+      </div>
+      <div class="list-scroll">
+        <table class="url-table">
+          <thead>
+            <tr>
+              <th data-i18n="thUrl">URL</th>
+              <th data-i18n="thLastmod">最后修改</th>
+              <th data-i18n="thPriority">优先级</th>
+            </tr>
+          </thead>
+          <tbody id="urlTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="code-panel">
+      <div class="code-head">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <b>sitemap.xml</b>
+        <span class="code-meta" id="xmlMeta"></span>
+      </div>
+      <pre class="code"><code id="xmlBox"></code></pre>
+    </div>
+    <div class="steps">
+      <div class="step"><b>01</b><h4 data-i18n="s1t">放到根目录</h4><p data-i18n="s1d">把 sitemap.xml 上传到网站根目录。</p></div>
+      <div class="step"><b>02</b><h4 data-i18n="s2t">提交给搜索引擎</h4><p data-i18n="s2d">在 Google Search Console、百度站长平台、Bing 逐一提交。</p></div>
+      <div class="step"><b>03</b><h4 data-i18n="s3t">保持更新</h4><p data-i18n="s3d">站点结构变化后重新生成并覆盖旧文件。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ FAILED ============ -->
+  <section id="failed" class="screen">
+    <div class="panel fail-card">
+      <div class="fail-ico">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+          <path d="M12 9v4M12 17h.01"/>
+        </svg>
+      </div>
+      <span class="tag tag-bad" data-i18n="failTag">失败</span>
+      <h2 data-i18n="failTitle">这次抓取没有完成</h2>
+      <p class="fail-reason" id="failReason"></p>
+      <p class="fail-url mono" id="failUrl"></p>
+      <p class="fail-hint" data-i18n="failHint">请改用公网可访问的 http/https 地址。</p>
+      <div class="actions center" style="margin-top:0">
+        <button class="btn primary" data-jump="home"><span data-i18n="failRetry">返回修改网址</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HELP ============ -->
+  <section id="help" class="screen">
+    <div class="prose-head">
+      <span class="tag" data-i18n="helpTag">帮助</span>
+      <h2 data-i18n="helpTitle">如何使用 Sitemap Studio</h2>
+    </div>
+    <div class="prose-grid">
+      <div class="panel">
+        <ol class="steps-list">
+          <li data-i18n="li1">输入完整网址（含 http/https），内网地址会被拒绝。</li>
+          <li data-i18n="li2">需要图片或视频收录时，在设置里打开对应开关。</li>
+          <li data-i18n="li3">抓取时在实时看板查看已发现、已加入和用时。</li>
+          <li data-i18n="li4">完成后下载 XML，结果按任务保存，可重复下载。</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3 data-i18n="limitsTitle">限制</h3>
+        <ul class="bullets">
+          <li data-i18n="lim1">最多 500 个 URL，超出后停止发现新页面。</li>
+          <li data-i18n="lim2">只在输入网址的域名范围内抓取，不做跨域跟随。</li>
+          <li data-i18n="lim3">私网 IP、localhost 和内网域名会被安全策略拒绝。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ABOUT ============ -->
+  <section id="about" class="screen">
+    <div class="prose-head">
+      <span class="tag" data-i18n="aboutTag">关于</span>
+      <h2 data-i18n="aboutTitle">给搜索引擎的路线图</h2>
+    </div>
+    <div class="prose-grid">
+      <div class="panel">
+        <p class="prose-p" data-i18n="aboutP1">Sitemap Studio 的流程参考 xml-sitemaps.com：输入网址、展开设置、实时看板、下载 XML，但用一套更现代、更克制的界面语言呈现。</p>
+        <p class="prose-p" data-i18n="aboutP2">抓取通道遵循 robots.txt、同域范围和逐跳重定向校验：所有页面请求都经过统一的安全校验，不会访问内网地址。</p>
+      </div>
+      <div class="panel">
+        <h3 data-i18n="aboutFlowT">流程</h3>
+        <ul class="mini-list">
+          <li data-i18n="fl1">输入完整网址</li>
+          <li data-i18n="fl2">按需打开媒体设置</li>
+          <li data-i18n="fl3">实时看抓取进度</li>
+          <li data-i18n="fl4">下载并提交 sitemap.xml</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <span data-i18n="footerLeft">Sitemap Studio · 交互原型 v2</span>
+  <span data-i18n="footerRight">中英双语 · 语言切换保留在本页</span>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  var I18N = {
+    zh: {
+      brandSub: "给搜索引擎的 XML 地图",
+      navHome: "首页", navHelp: "帮助", navAbout: "关于",
+      protoLabel: "原型跳转",
+      jHome: "首页", jCrawl: "抓取中", jDone: "抓取完成", jFail: "抓取失败", jHelp: "帮助", jAbout: "关于",
+      protoHint: "或从首页提交网址，播放完整抓取动画",
+      heroBadge: "免费 · 免注册 · 最多 500 个 URL",
+      heroTitle: "让搜索引擎看见你的每一个页面",
+      heroLede: "输入网址，几十秒内生成标准 XML 站点地图。实时看板显示已发现、已加入的 URL，完成后一键下载。",
+      urlPh: "https://your-domain.com",
+      generate: "生成站点地图",
+      settingsLabel: "设置",
+      tryLabel: "试试",
+      optImages: "包含图片站点地图", optImagesD: "为每个页面写入 image:image 条目",
+      optVideos: "包含视频站点地图", optVideosD: "为每个页面写入 video:video 条目",
+      statLimit: "URL 上限", statFormat: "标准格式", statSignup: "注册步骤",
+      f1t: "同域智能抓取", f1d: "遵循 robots.txt，只在同一域名下发现链接，逐跳校验重定向。",
+      f2t: "实时抓取看板", f2d: "已发现、已加入、用时和最近抓取的 URL 全程可见。",
+      f3t: "任务制下载", f3d: "结果保存在任务里，下载和预览不会重新抓取，媒体选项不会丢。",
+      crawlTag: "抓取中", crawlTitle: "正在扫描站点",
+      jSite: "网站", jTask: "任务",
+      crawlConnecting: "正在连接并发现页面…", crawlWorking: "正在跟随内部链接…", crawlDedup: "正在去重并写入站点地图…",
+      mFound: "已发现", mAdded: "已加入", mLimit: "上限", mTime: "用时",
+      feedTitle: "最近发现", feedLive: "实时", feedEmpty: "等待第一个 URL…",
+      crawlNote: "这是原型动画，约 4 秒完成。",
+      doneTag: "抓取完成", doneTitle: "站点地图已生成",
+      listTitle: "地址列表", listCount: "共 {n} 条",
+      thUrl: "URL", thLastmod: "最后修改", thPriority: "优先级",
+      dUrls: "URL 数", dTime: "用时", dImg: "图片条目", dVid: "视频条目",
+      doneNote: "结果保存在本任务，下载不会重新抓取。",
+      dlBtn: "下载 sitemap.xml", copyBtn: "复制 XML", regen: "重新生成",
+      xmlMeta: "{n} 个 URL · lastmod {d}", xmlMetaImg: " · image:image 已开启", xmlMetaVid: " · video:video 已开启",
+      s1t: "放到根目录", s1d: "把 sitemap.xml 上传到网站根目录。",
+      s2t: "提交给搜索引擎", s2d: "在 Google Search Console、百度站长平台、Bing 逐一提交。",
+      s3t: "保持更新", s3d: "站点结构变化后重新生成并覆盖旧文件。",
+      failTag: "失败", failTitle: "这次抓取没有完成",
+      failReasonInternal: "出于安全原因，内网地址与私网 IP（localhost / 127.0.0.1 / *.local）会被拒绝。",
+      failReasonInvalid: "这个网址无法解析，请检查格式后重试。",
+      failHint: "请改用公网可访问的 http/https 地址。", failRetry: "返回修改网址",
+      helpTag: "帮助", helpTitle: "如何使用 Sitemap Studio",
+      li1: "输入完整网址（含 http/https），内网地址会被拒绝。",
+      li2: "需要图片或视频收录时，在设置里打开对应开关。",
+      li3: "抓取时在实时看板查看已发现、已加入和用时。",
+      li4: "完成后下载 XML，结果按任务保存，可重复下载。",
+      limitsTitle: "限制",
+      lim1: "最多 500 个 URL，超出后停止发现新页面。",
+      lim2: "只在输入网址的域名范围内抓取，不做跨域跟随。",
+      lim3: "私网 IP、localhost 和内网域名会被安全策略拒绝。",
+      aboutTag: "关于", aboutTitle: "给搜索引擎的路线图",
+      aboutP1: "Sitemap Studio 的流程参考 xml-sitemaps.com：输入网址、展开设置、实时看板、下载 XML，但用一套更现代、更克制的界面语言呈现。",
+      aboutP2: "抓取通道遵循 robots.txt、同域范围和逐跳重定向校验：所有页面请求都经过统一的安全校验，不会访问内网地址。",
+      aboutFlowT: "流程",
+      fl1: "输入完整网址", fl2: "按需打开媒体设置", fl3: "实时看抓取进度", fl4: "下载并提交 sitemap.xml",
+      footerLeft: "Sitemap Studio · 交互原型 v2",
+      footerRight: "中英双语 · 语言切换保留在本页",
+      copied: "已复制到剪贴板", copiedFail: "复制失败，请手动选择文本", downloaded: "已开始下载 sitemap.xml"
+    },
+    en: {
+      brandSub: "XML map for search engines",
+      navHome: "Home", navHelp: "Help", navAbout: "About",
+      protoLabel: "Prototype jump",
+      jHome: "Home", jCrawl: "Crawling", jDone: "Completed", jFail: "Failed", jHelp: "Help", jAbout: "About",
+      protoHint: "or submit a URL on Home to play the full crawl",
+      heroBadge: "Free · no signup · up to 500 URLs",
+      heroTitle: "Make every page visible to search engines",
+      heroLede: "Enter a URL and get a standard XML sitemap in seconds. A live board shows discovered and added URLs, then download in one click.",
+      urlPh: "https://your-domain.com",
+      generate: "Generate sitemap",
+      settingsLabel: "Settings",
+      tryLabel: "Try",
+      optImages: "Include image sitemap", optImagesD: "Adds an image:image entry per page",
+      optVideos: "Include video sitemap", optVideosD: "Adds a video:video entry per page",
+      statLimit: "URL cap", statFormat: "Format", statSignup: "Sign-up steps",
+      f1t: "On-origin smart crawl", f1d: "Respects robots.txt, follows links on the same host only, and validates every redirect hop.",
+      f2t: "Live crawl board", f2d: "Discovered, added, elapsed time and the latest URLs, visible the whole time.",
+      f3t: "Task-based download", f3d: "Results are stored on the task, so preview and download never recrawl and never drop media flags.",
+      crawlTag: "Crawling", crawlTitle: "Scanning your site",
+      jSite: "Site", jTask: "Task",
+      crawlConnecting: "Connecting and discovering pages…", crawlWorking: "Following internal links…", crawlDedup: "Deduplicating and writing the sitemap…",
+      mFound: "Discovered", mAdded: "Added", mLimit: "Limit", mTime: "Elapsed",
+      feedTitle: "Live feed", feedLive: "LIVE", feedEmpty: "Waiting for the first URL…",
+      crawlNote: "Prototype animation — finishes in about 4 seconds.",
+      doneTag: "Completed", doneTitle: "Your sitemap is ready",
+      listTitle: "URL list", listCount: "{n} entries",
+      thUrl: "URL", thLastmod: "Last mod", thPriority: "Priority",
+      dUrls: "URLs", dTime: "Elapsed", dImg: "Image entries", dVid: "Video entries",
+      doneNote: "The result is stored on this task. Downloading will not recrawl.",
+      dlBtn: "Download sitemap.xml", copyBtn: "Copy XML", regen: "Generate again",
+      xmlMeta: "{n} URLs · lastmod {d}", xmlMetaImg: " · image:image on", xmlMetaVid: " · video:video on",
+      s1t: "Upload to root", s1d: "Place sitemap.xml at the root of your website.",
+      s2t: "Submit to search engines", s2d: "Submit it in Google Search Console, Baidu Webmaster, and Bing.",
+      s3t: "Keep it fresh", s3d: "Regenerate and replace the file when your site structure changes.",
+      failTag: "Failed", failTitle: "This crawl did not finish",
+      failReasonInternal: "For security, private-network hosts and IPs (localhost / 127.0.0.1 / *.local) are rejected.",
+      failReasonInvalid: "This URL cannot be parsed. Check the format and try again.",
+      failHint: "Use a public http/https address instead.", failRetry: "Edit the URL",
+      helpTag: "Help", helpTitle: "How to use Sitemap Studio",
+      li1: "Enter a full http/https URL. Private-network addresses are rejected.",
+      li2: "Open Settings to include image or video entries when needed.",
+      li3: "Watch discovered, added and elapsed time on the live board while crawling.",
+      li4: "Download the XML when it finishes — results stay on the task for later downloads.",
+      limitsTitle: "Limits",
+      lim1: "Up to 500 URLs; discovery stops once the cap is reached.",
+      lim2: "Crawling stays on the host of the URL you entered, with no cross-domain follows.",
+      lim3: "Private IPs, localhost and internal domains are rejected by the security policy.",
+      aboutTag: "About", aboutTitle: "A route map for crawlers",
+      aboutP1: "The flow follows xml-sitemaps.com — URL, settings, live board, download — but presents it with a calmer, more modern interface language.",
+      aboutP2: "The crawl channel respects robots.txt, stays on-origin and validates every redirect hop. All page requests pass the same safety checks, so internal addresses are never contacted.",
+      aboutFlowT: "Flow",
+      fl1: "Enter a full URL", fl2: "Toggle media options", fl3: "Watch the live board", fl4: "Download and submit sitemap.xml",
+      footerLeft: "Sitemap Studio · prototype v2",
+      footerRight: "Bilingual · language stays on this page",
+      copied: "Copied to clipboard", copiedFail: "Copy failed — select the text manually", downloaded: "Downloading sitemap.xml"
+    }
+  };
+
+  var TICKS = 14;
+  var STEP_MS = 280;
+  var PATHS = [
+    "/", "/about", "/contact", "/pricing", "/blog",
+    "/blog/how-to-submit-sitemap", "/blog/xml-vs-html-sitemap", "/docs", "/docs/getting-started", "/docs/api",
+    "/docs/api/authentication", "/features", "/changelog", "/careers", "/customers",
+    "/integrations", "/security", "/status", "/support", "/help/faq",
+    "/help/billing", "/legal/privacy", "/legal/terms", "/legal/cookies", "/partners",
+    "/press", "/templates", "/templates/starter", "/templates/agency", "/tools/robots-checker",
+    "/tools/url-inspector", "/case-studies", "/case-studies/acme", "/sitemap-index"
+  ];
+
+  var lang = "zh";
+  var timer = null;
+  var tick = 0;
+  var toastTimer = null;
+  var state = { base: "", taskId: "", paths: [], elapsed: 0, lastmod: "" };
+
+  function $(id) { return document.getElementById(id); }
+  function t(key) { return (I18N[lang] && I18N[lang][key]) || I18N.zh[key] || key; }
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function applyI18n() {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    document.querySelectorAll("[data-i18n]").forEach(function (el) { el.textContent = t(el.dataset.i18n); });
+    document.querySelectorAll("[data-i18n-ph]").forEach(function (el) { el.placeholder = t(el.dataset.i18nPh); });
+    $("langZh").classList.toggle("on", lang === "zh");
+    $("langEn").classList.toggle("on", lang === "en");
+    if (state.paths.length) { renderDoneMeta(); renderUrlList(); }
+  }
+
+  function show(id) {
+    document.querySelectorAll(".screen").forEach(function (s) { s.classList.toggle("on", s.id === id); });
+    document.querySelectorAll(".proto-btns button").forEach(function (b) { b.classList.toggle("on", b.dataset.jump === id); });
+    document.querySelectorAll("[data-nav]").forEach(function (a) { a.classList.toggle("active", a.dataset.nav === id); });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function isPrivate(url) {
+    try {
+      var host = new URL(url).hostname;
+      if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return true;
+      if (host.charAt(0) === "[") return true;
+      var m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+      if (!m) return false;
+      var a = Number(m[1]);
+      var b = Number(m[2]);
+      return a === 0 || a === 10 || a === 127 ||
+        (a === 192 && b === 168) ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 169 && b === 254);
+    } catch (e) { return false; }
+  }
+
+  function makeTaskId() {
+    var hex = function () { return Math.floor(Math.random() * 16).toString(16); };
+    var part = function (n) { var s = ""; for (var i = 0; i < n; i++) s += hex(); return s; };
+    return part(8) + "-" + part(4) + "-4" + part(3) + "-a" + part(3) + "-" + part(12);
+  }
+
+  function isoNow() {
+    var d = new Date();
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    var off = -d.getTimezoneOffset();
+    var sign = off >= 0 ? "+" : "-";
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" +
+      p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + sign +
+      p(Math.floor(Math.abs(off) / 60)) + ":" + p(Math.abs(off) % 60);
+  }
+
+  function feedRow(path, ms) {
+    return '<div class="feed-row"><span class="fr-path">' + esc(path) + '</span>' +
+      '<span class="fr-status mono">200</span><span class="fr-time mono">' + ms + 'ms</span></div>';
+  }
+
+  function prioOf(p) {
+    var depth = (p.match(/\//g) || []).length;
+    return Math.max(0.3, 1 - depth * 0.15).toFixed(1);
+  }
+
+  function buildXml(base, paths, opts) {
+    var root = String(base).replace(/\/+$/, "");
+    var ns = ' xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"' +
+      (opts.images ? ' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"' : "") +
+      (opts.videos ? ' xmlns:video="http://www.google.com/schemas/sitemap-video/1.1"' : "");
+    var lines = ['<?xml version="1.0" encoding="UTF-8"?>', "<urlset" + ns + ">"];
+    paths.forEach(function (p) {
+      lines.push("  <url>");
+      lines.push("    <loc>" + root + p + "</loc>");
+      lines.push("    <lastmod>" + state.lastmod + "</lastmod>");
+      lines.push("    <priority>" + prioOf(p) + "</priority>");
+      if (opts.images) {
+        lines.push("    <image:image>");
+        lines.push("      <image:loc>" + root + "/og/cover.png</image:loc>");
+        lines.push("    </image:image>");
+      }
+      if (opts.videos) {
+        lines.push("    <video:video>");
+        lines.push("      <video:thumbnail_loc>" + root + "/og/video.jpg</video:thumbnail_loc>");
+        lines.push("      <video:title>Demo video</video:title>");
+        lines.push("    </video:video>");
+      }
+      lines.push("  </url>");
+    });
+    lines.push("</urlset>");
+    return lines.join("\n");
+  }
+
+  function highlight(xml) {
+    return esc(xml)
+      .replace(/(&gt;)([^&<]*\S[^&<]*)(&lt;)/g, '$1<span class="v">$2</span>$3')
+      .replace(/(&lt;\/?\??[^&]*?\/?\??&gt;)/g, '<span class="t">$1</span>');
+  }
+
+  function nodeOpts() {
+    return { images: $("includeImages").checked, videos: $("includeVideos").checked };
+  }
+
+  function renderDoneMeta() {
+    var opts = nodeOpts();
+    $("dUrls").textContent = String(state.paths.length);
+    $("dTime").textContent = state.elapsed + "s";
+    $("dImg").textContent = opts.images ? String(state.paths.length * 2) : "0";
+    $("dVid").textContent = opts.videos ? String(Math.min(8, state.paths.length)) : "0";
+    var meta = t("xmlMeta").replace("{n}", state.paths.length).replace("{d}", state.lastmod.slice(0, 10));
+    if (opts.images) meta += t("xmlMetaImg");
+    if (opts.videos) meta += t("xmlMetaVid");
+    $("xmlMeta").textContent = meta;
+  }
+
+  function renderUrlList() {
+    var root = state.base.replace(/\/+$/, "");
+    $("urlTableBody").innerHTML = state.paths.map(function (p) {
+      return '<tr><td class="u mono">' + esc(root + p) + '</td>' +
+        '<td class="lm mono">' + esc(state.lastmod) + '</td>' +
+        '<td class="pr mono">' + prioOf(p) + '</td></tr>';
+    }).join("");
+    $("listCount").textContent = t("listCount").replace("{n}", state.paths.length);
+  }
+
+  function renderXml() {
+    $("xmlBox").innerHTML = highlight(buildXml(state.base, state.paths, nodeOpts()));
+  }
+
+  function finishCrawl() {
+    renderDoneMeta();
+    renderUrlList();
+    renderXml();
+    show("done");
+  }
+
+  function showFail(reasonKey, url) {
+    $("failReason").textContent = t(reasonKey);
+    $("failUrl").textContent = url || "";
+    show("failed");
+  }
+
+  function startCrawl(url) {
+    clearInterval(timer);
+    state.base = url;
+    state.taskId = makeTaskId();
+    state.paths = [];
+    state.elapsed = 0;
+    state.lastmod = isoNow();
+    $("crawlSite").textContent = url;
+    $("crawlTask").textContent = state.taskId;
+    $("doneSite").textContent = url;
+    $("doneTask").textContent = state.taskId;
+    $("feed").innerHTML = '<p class="feed-empty">' + esc(t("feedEmpty")) + '</p>';
+    $("nowUrl").textContent = "";
+    $("mFound").textContent = "0";
+    $("mAdded").textContent = "0";
+    $("mTime").textContent = "0s";
+    $("progPct").textContent = "0%";
+    $("barFill").style.width = "0%";
+    $("progStatus").textContent = t("crawlConnecting");
+    show("crawling");
+    var startedAt = Date.now();
+    tick = 0;
+    timer = setInterval(function () {
+      tick += 1;
+      var until = Math.max(1, Math.round((PATHS.length * tick) / TICKS));
+      while (state.paths.length < until) {
+        var path = PATHS[state.paths.length];
+        state.paths.push(path);
+        var empty = $("feed").querySelector(".feed-empty");
+        if (empty) empty.remove();
+        $("feed").insertAdjacentHTML("afterbegin", feedRow(path, 40 + Math.floor(Math.random() * 340)));
+      }
+      var secs = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+      var pct = Math.round((tick / TICKS) * 100);
+      $("mFound").textContent = String(Math.min(72, 6 + tick * 5));
+      $("mAdded").textContent = String(state.paths.length);
+      $("mTime").textContent = secs + "s";
+      $("progPct").textContent = pct + "%";
+      $("barFill").style.width = pct + "%";
+      $("nowUrl").textContent = PATHS[Math.min(state.paths.length, PATHS.length - 1)];
+      $("progStatus").textContent = t(tick <= 2 ? "crawlConnecting" : tick >= TICKS - 2 ? "crawlDedup" : "crawlWorking");
+      if (tick >= TICKS) {
+        clearInterval(timer);
+        state.elapsed = secs;
+        finishCrawl();
+      }
+    }, STEP_MS);
+  }
+
+  function jump(id) {
+    clearInterval(timer);
+    if (id === "home" || id === "help" || id === "about") { show(id); return; }
+    var demo = state.base || "https://www.example.com";
+    if (id === "crawling") { startCrawl(demo); return; }
+    if (id === "done") {
+      if (state.paths.length < 8) {
+        state.base = demo;
+        state.taskId = state.taskId || makeTaskId();
+        state.paths = PATHS.slice(0, 24);
+        state.elapsed = 4;
+        state.lastmod = isoNow();
+        $("doneSite").textContent = state.base;
+        $("doneTask").textContent = state.taskId;
+      }
+      renderDoneMeta();
+      renderUrlList();
+      renderXml();
+      show("done");
+      return;
+    }
+    if (id === "failed") { showFail("failReasonInternal", "http://127.0.0.1/"); }
+  }
+
+  function toast(msg) {
+    var el = $("toast");
+    el.textContent = msg;
+    el.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove("on"); }, 1800);
+  }
+
+  document.querySelectorAll("[data-jump]").forEach(function (el) {
+    el.addEventListener("click", function (e) {
+      e.preventDefault();
+      jump(el.dataset.jump);
+    });
+  });
+
+  $("toggleSettings").addEventListener("click", function () {
+    $("settings").classList.toggle("open");
+    $("toggleSettings").classList.toggle("open");
+  });
+
+  document.querySelectorAll(".chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      $("url").value = chip.dataset.url;
+      $("url").focus();
+    });
+  });
+
+  $("genForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var url = $("url").value.trim();
+    if (!url) { showFail("failReasonInvalid", ""); return; }
+    if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+    $("url").value = url;
+    try { new URL(url); } catch (err) { showFail("failReasonInvalid", url); return; }
+    if (isPrivate(url)) { showFail("failReasonInternal", url); return; }
+    startCrawl(url);
+  });
+
+  $("langZh").addEventListener("click", function () { lang = "zh"; applyI18n(); });
+  $("langEn").addEventListener("click", function () { lang = "en"; applyI18n(); });
+
+  ["includeImages", "includeVideos"].forEach(function (id) {
+    $(id).addEventListener("change", function () {
+      if (state.paths.length) { renderDoneMeta(); renderXml(); }
+    });
+  });
+
+  $("dlBtn").addEventListener("click", function () {
+    var xml = buildXml(state.base, state.paths, nodeOpts());
+    var safe = xml.replace(/&(?!(amp|lt|gt|quot|apos);)/g, "&amp;");
+    var blob = new Blob([safe], { type: "application/xml" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "sitemap.xml";
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    toast(t("downloaded"));
+  });
+
+  $("copyBtn").addEventListener("click", function () {
+    var xml = buildXml(state.base, state.paths, nodeOpts());
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(xml).then(function () { toast(t("copied")); }, function () { toast(t("copiedFail")); });
+    } else {
+      toast(t("copiedFail"));
+    }
+  });
+
+  applyI18n();
+  show("home");
+</script>
+</body>
+</html>

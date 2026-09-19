@@ -1,0 +1,7 @@
+target/
+data/
+.playwright-mcp/
+*.log
+.idea/
+*.iml
+.vscode/
