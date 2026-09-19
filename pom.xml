@@ -88,6 +88,12 @@
             <version>2.13.0</version>
         </dependency>
 
+        <!-- 认证与授权 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
         <!-- 数据持久化：嵌入式 H2 + Spring Data JPA（自动更新站点与 SEO 报告） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
