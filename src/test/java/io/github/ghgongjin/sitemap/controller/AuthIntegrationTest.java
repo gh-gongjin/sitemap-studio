@@ -195,7 +195,7 @@ class AuthIntegrationTest {
         // Given: 同一会话内游客访问门禁页被 302 到登录页，原始目标由 RequestCache 暂存进该会话
         userService.register("kate", "Passw0rd1");
         MockHttpSession session = new MockHttpSession();
-        String target = "/reports";
+        String target = "/report/t-kate";
         assertThat(bouncedToLogin(mvc.perform(get(target).session(session)).andReturn().getResponse()))
                 .isTrue();
 
@@ -205,7 +205,7 @@ class AuthIntegrationTest {
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
         // SavedRequest 处理器给出原始绝对地址，并按惯例追加 ?continue 作为缓存分隔标记
-        assertThat(result.getResponse().getRedirectedUrl()).endsWith("/reports?continue");
+        assertThat(result.getResponse().getRedirectedUrl()).endsWith("/report/t-kate?continue");
     }
 
     /**

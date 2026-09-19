@@ -166,6 +166,11 @@
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/><path d="M16 3h5v5"/></svg>
       </div>
       <b th:text="#{auto.empty}">还没有自动更新站点，先在上面添加一个。</b>
+      <p class="guest-hint" th:if="${#strings.isEmpty(currentUsername)}">
+        <span th:text="#{auth.hint.seeOwn}">登录或</span>
+        <a class="link" th:href="@{/register}" th:text="#{nav.register}">注册</a>
+        <span th:text="#{auth.hint.auto.tail}">后，即可添加站点并开启定时自动更新与推送。</span>
+      </p>
     </div>
   </div>
 </main>

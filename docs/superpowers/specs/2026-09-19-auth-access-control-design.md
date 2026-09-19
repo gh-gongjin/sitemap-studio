@@ -27,10 +27,12 @@
 | `GET /`、`POST /generate`、`POST /generate-async`、`GET /task/{id}`、`GET /api/task/{id}/**`、`GET /preview`、`GET /download` | ✅ | ✅ |
 | `GET /about`、`GET /help`、静态资源（css/js/fonts）、WebSocket（`/ws/**`） | ✅ | ✅ |
 | `GET/POST /login`、`GET/POST /register` | ✅（已登录访问则 302 回首页） | — |
-| `GET /reports`、`GET /report/{taskId}`、`GET /report/{taskId}/export` | ❌ 302 → `/login`，登录后回跳 | ✅ 仅本人报告，非本人 404 |
-| `/auto/**`（页面与全部 POST 操作） | ❌ 302 → `/login` | ✅ 仅本人站点，非本人 404 |
+| `GET /reports` | ✅ 页面直接打开，空列表 + 登录/注册引导 | ✅ 仅本人报告 |
+| `GET /report/{taskId}`、`GET /report/{taskId}/export` | ❌ 302 → `/login`，登录后回跳 | ✅ 仅本人报告，非本人 404 |
+| `GET /auto` | ✅ 页面直接打开，空列表 + 登录/注册引导 | ✅ 仅本人站点 |
+| `POST /auto`、`/auto/{id}/**`（详情/下载/全部写操作） | ❌ 302 → `/login`，登录后回跳 | ✅ 仅本人站点，非本人 404 |
 
-游客点击顶栏"报告 / 自动更新"正常跳登录页，`SavedRequest` 机制登录后回到原始目标页。
+> 2026-09-19 修订（用户反馈）：列表页（`/reports`、`GET /auto`）不再点开即跳登录，游客可直接浏览空态页并看到登录引导；只有真正的使用动作——查看/导出报告、添加与操作自动更新站点——才被门禁 302 到登录页，`SavedRequest` 登录后回跳原目标。
 
 ## 4. 数据模型
 
@@ -115,8 +117,8 @@ Spring Security `formLogin`：`/login` 页、`/login` POST、失败 `?error=1` �
 | 测试类 | 覆盖 |
 |--------|------|
 | `AuthIntegrationTest` | 注册成功 → `/login?registered=1` 引导登录，登录后回跳；重名/弱密码/两次不一致/非法用户名分别报对应错误；`POST /register` 缺 CSRF → 403；登录成功；错误密码 `?error`；已登录访问 `/login` → 302 首页；退出后会话失效 |
-| `ReportAccessControlTest` | 游客 `/reports`、`/report/{id}`、`/report/{id}/export` → 302 → `/login` 且无下载头；A 登录后看不到 B 的报告、访问 B 的报告/导出 → 404；A 的爬取任务完成后报告 `user_id` 绑定正确且列表可见 |
-| `AutoAccessControlTest` | 游客 `/auto` 与全部 POST → 302；B 不能 run/toggle/delete/push 配置 A 的站点（404）；`AutoSiteUpdater` 生成的报告归属站点所有者 |
+| `ReportAccessControlTest` | 游客 `/reports` → 200 空态 + 登录引导且不泄漏任何用户数据；`/report/{id}`、`/report/{id}/export` → 302 → `/login` 且无下载头；A 登录后看不到 B 的报告、访问 B 的报告/导出 → 404；A 的爬取任务完成后报告 `user_id` 绑定正确且列表可见 |
+| `AutoAccessControlTest` | 游客 `GET /auto` → 200 空态 + 登录引导；`POST /auto`、详情/下载 → 302；B 不能 run/toggle/delete/push 配置 A 的站点（404）；`AutoSiteUpdater` 生成的报告归属站点所有者 |
 | `UserServiceTest` | 密码哈希后可用 encoder 校验、明文不入库；用户名查重 |
 
 改造存量：`ReportExportIntegrationTest`、`VisualHarnessTest` 及相关用例补 `csrf()` 与 `authentication()`，播种报告带 `user_id`。全量 306 项回归通过。

@@ -47,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * @ClassName AutoAccessControlTest
- * @Description 自动更新门禁与用户隔离：游客访问 /auto 页与写接口先登录；他人站点读/写/推送一律 404
+ * @Description 自动更新门禁与用户隔离：列表页游客可打开（空列表不泄漏数据）；详情页/下载/写接口先登录，他人站点读/写/推送一律 404
  *              且数据不被改动；同一 URL 允许归属不同用户；存量无归属站点（user_id 为空）对所有人不可见；
  *              自动更新产出的 SEO 报告归属站点主人
  * @Author gj
@@ -137,12 +137,28 @@ class AutoAccessControlTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/auto", "/auto/1", "/auto/1/download"})
+    @ValueSource(strings = {"/auto/1", "/auto/1/download"})
     void shouldRedirectGuestFromPages(String path) throws Exception {
-        // When / Then: 游客访问列表页、详情页与下载接口都先被送到登录页，页面内容不外泄
+        // When / Then: 游客访问详情页与下载接口都先被送到登录页，页面内容不外泄
         var response = mvc.perform(get(path)).andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrlPattern("http://*/login*")).andReturn().getResponse();
         assertThat(response.getContentAsString(StandardCharsets.UTF_8)).isEmpty();
+    }
+
+    @Test
+    void shouldOpenAutoPageForGuestWithoutLeakingData() throws Exception {
+        // Given: alice 名下与存量无归属各一个站点
+        createSite(alice.getId(), "https://alice-auto.example.com");
+        seedLegacySite("https://legacy-auto.example.com");
+
+        // When: 游客直接打开自动更新管理页
+        String html = mvc.perform(get("/auto"))
+                .andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        // Then: 页面可见但不出现任何用户的站点行；游客空态给出登录/注册引导
+        assertThat(html).doesNotContain("alice-auto.example.com", "legacy-auto.example.com");
+        assertThat(html).contains("guest-hint");
     }
 
     @Test

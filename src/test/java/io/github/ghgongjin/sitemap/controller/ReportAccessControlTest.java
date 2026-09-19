@@ -28,8 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * @ClassName ReportAccessControlTest
- * @Description SEO 报告用户隔离门禁：游客访问报告页/列表/导出被 302 到登录页且不泄漏下载头；
- *              他人报告一律 404；历史列表只见本人归属的报告
+ * @Description SEO 报告用户隔离门禁：历史列表页游客可打开（空列表不泄漏数据）；
+ *              报告详情/导出游客 302 到登录页且不泄漏下载头；他人报告一律 404；列表只见本人归属
  * @Author gj
  * @Date 2026/9/19
  * @Version 1.0
@@ -90,7 +90,7 @@ class ReportAccessControlTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/reports", "/report/t-alice", "/report/t-alice/export"})
+    @ValueSource(strings = {"/report/t-alice", "/report/t-alice/export"})
     void shouldRedirectGuestToLogin(String path) throws Exception {
         // Given: 一条归属 alice 的报告
         seed("t-alice", alice.getId());
@@ -103,6 +103,23 @@ class ReportAccessControlTest {
         assertThat(response.getHeader("Location")).startsWith("http://localhost/login");
         assertThat(response.getHeader("Content-Disposition")).isNull();
         assertThat(response.getContentAsString(StandardCharsets.UTF_8)).isEmpty();
+    }
+
+    @Test
+    void shouldOpenReportsPageForGuestWithoutLeakingData() throws Exception {
+        // Given: 归属 alice 与他人、历史无归属各一份
+        seed("t-alice", alice.getId());
+        seed("t-bob", bob.getId());
+        seed("t-legacy", null);
+
+        // When: 游客直接打开历史列表页
+        String html = mvc.perform(get("/reports"))
+                .andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        // Then: 页面可见但不出现任何用户的报告行；游客空态给出登录/注册引导
+        assertThat(html).doesNotContain("t-alice", "t-bob", "t-legacy");
+        assertThat(html).contains("guest-hint");
     }
 
     @Test
@@ -131,7 +148,7 @@ class ReportAccessControlTest {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         // Then
-        assertThat(html).contains("t-alice").doesNotContain("t-bob", "t-legacy");
+        assertThat(html).contains("t-alice").doesNotContain("t-bob", "t-legacy", "guest-hint");
     }
 
     @Test
