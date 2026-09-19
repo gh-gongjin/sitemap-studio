@@ -7,6 +7,37 @@ Crawl any public website, generate a standards-compliant XML sitemap, and manage
 the full SEO workflow — reports, exports, scheduled updates, and push to search
 engines — from a single Spring Boot application.
 
+<p align="center">
+  <img src="docs/images/home-en.jpg" alt="Home" width="880">
+</p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/preview-zh.jpg" alt="Sitemap result"></td>
+    <td width="50%"><img src="docs/images/progress-zh.jpg" alt="Live crawl board"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Sitemap result · 生成结果与下载</b></td>
+    <td align="center"><b>Live crawl board · 实时抓取看板</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/report-detail-zh.jpg" alt="SEO report"></td>
+    <td><img src="docs/images/reports-zh.jpg" alt="Report list"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>SEO report · 报告与 CSV/PDF/Word 导出</b></td>
+    <td align="center"><b>Report history · 历史报告</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/auto-zh.jpg" alt="Auto-update sites"></td>
+    <td><img src="docs/images/auto-push-zh.jpg" alt="Push configuration"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Auto-update · 定时更新站点</b></td>
+    <td align="center"><b>Push · SFTP/FTP/FTPS + IndexNow</b></td>
+  </tr>
+</table>
+
 ## Features
 
 - **Sitemap generation** — depth-first crawler (Jsoup, optional headless browser for JS-rendered sites) producing valid XML sitemaps. Guest access: crawl, preview, and download need no account.
@@ -67,6 +98,8 @@ Apache License 2.0 — see [LICENSE](LICENSE).
 Sitemap Studio 是一款免费、可自托管的站点地图生成器，提供中英双语 Web 界面。
 抓取任意公开网站、生成符合规范的 XML 站点地图，并在单个 Spring Boot 应用中完成
 完整 SEO 工作流——报告、导出、定时更新与搜索引擎推送。
+
+> 界面截图见文首图集（页面截图为中文界面，首张为英文首页）。
 
 ## 功能特性
 
