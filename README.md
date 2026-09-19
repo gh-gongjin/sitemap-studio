@@ -1,70 +1,118 @@
-# 站点地图生成器
+# Sitemap Studio
 
-项目主线为 Java 应用，使用 Spring Boot 和 Jsoup 抓取网站链接并生成 XML 站点地图。Java 源码及页面资源位于 `src/`，构建由 Maven 管理。
+**English** | [中文](#中文说明)
 
-## 环境要求
+A free, self-hosted sitemap generator with a bilingual (中文 / English) web UI.
+Crawl any public website, generate a standards-compliant XML sitemap, and manage
+the full SEO workflow — reports, exports, scheduled updates, and push to search
+engines — from a single Spring Boot application.
 
-- 本机安装 JDK 21 或更高版本（构建需要完整 JDK），以及 Maven 3.9 或更高版本。
-- 确保 `java`、`mvn` 可从命令行执行；用 `java -version`、`mvn --version` 核对版本，Maven 使用的 Java 也需满足要求。
-- 首次获取依赖和构建插件需要网络。离线构建前，必须在同一依赖仓库中准备好所需依赖及插件。
+## Features
 
-## 启动
+- **Sitemap generation** — depth-first crawler (Jsoup, optional headless browser for JS-rendered sites) producing valid XML sitemaps. Guest access: crawl, preview, and download need no account.
+- **Image / Video / News sitemaps** — optional inclusion of image, video, and Google News extensions per task.
+- **SEO reports** — per-crawl audit report with CSV / PDF / Word export. Reports are scoped to the signed-in user.
+- **Auto-update & push** — register a site, schedule re-crawls, and publish results via SFTP / FTP / FTPS, plus Bing/Yandex/IndexNow notification through IndexNow.
+- **Account isolation** — Spring Security form login; users only ever see (and receive 404, not 403, for) their own reports and sites.
+- **Bilingual UI** — full Chinese / English i18n, dark-first responsive design.
+- **Zero external services** — embedded H2 file database, runs as a single jar.
 
-Windows 下运行统一入口：
+## Tech Stack
 
-```bat
-start.bat
-```
+Java 21 · Spring Boot 3.5 · Thymeleaf · Spring Security · Jsoup · MyBatis-Plus · H2 · Maven
 
-脚本会切换到自身目录、输出 Java/Maven 版本、执行 `mvn verify`（包含测试和打包，不清理历史产物、不跳过测试），然后在前台运行 `target/sitemap-studio-1.0.0.jar`。任何一步失败都会返回对应退出码；结束后恢复调用时的目录。
+## Quick Start
 
-`run-server.bat`、`run-springboot.bat`、`quick-start.bat` 均只转调 `start.bat`，透传参数和退出码。脚本参数传给 Java 应用，例如：
-
-```bat
-start.bat --server.port=8081
-```
-
-默认访问地址为 **http://localhost:8080**。请等待 Spring Boot 日志确认启动成功后再访问；按 `Ctrl+C` 停止前台应用。如端口被占用，可使用上述端口参数。
-
-也可以在项目根目录手动构建并启动（适用于 Windows、Linux、macOS）：
+Requirements: JDK 21+ and Maven 3.9+ (`java -version`, `mvn --version`).
 
 ```sh
 mvn verify
 java -jar target/sitemap-studio-1.0.0.jar
 ```
 
-## 测试与依赖缓存
+Open **http://localhost:8080**. On Windows you can run `start.bat`, which checks
+toolchain versions, runs `mvn verify`, and launches the jar in the foreground
+(`Ctrl+C` to stop). Pass Spring Boot arguments after the script, e.g.
+`start.bat --server.port=8081`.
 
-在项目根目录执行：
+Data is stored in `./data/` (H2 file database) — delete the directory to start fresh.
+
+## Development
 
 ```sh
-mvn test
-mvn verify
+mvn test    # unit & MockMvc tests
+mvn verify  # full build with tests and packaging
 ```
 
-`test` 执行测试，`verify` 执行包含测试、打包及验证阶段的完整构建。实际结果以命令输出为准。
+Once dependencies are cached, offline builds work with `mvn -o verify`. The
+project-local `.mvn/` settings only affect this build and never touch your
+global Maven configuration.
 
-依赖及插件缓存齐备后，可离线构建：
+## Usage Limits & Caveats
+
+- Only publicly accessible HTTP(S) sites can be crawled; internal, loopback, and `file://` targets are refused. Respect target-site rules and only crawl content you are authorized to access.
+- A single task crawls at most 500 pages; completeness is not guaranteed and results depend on network, site access restrictions, and link structure.
+- In-flight crawl tasks live in memory and expire; results are persisted only as reports once completed.
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
+
+---
+
+<a name="中文说明"></a>
+
+# 中文说明
+
+Sitemap Studio 是一款免费、可自托管的站点地图生成器，提供中英双语 Web 界面。
+抓取任意公开网站、生成符合规范的 XML 站点地图，并在单个 Spring Boot 应用中完成
+完整 SEO 工作流——报告、导出、定时更新与搜索引擎推送。
+
+## 功能特性
+
+- **站点地图生成**：基于 Jsoup（可选无头浏览器渲染 JS 页面）的深度优先爬虫，输出合法 XML 站点地图。游客免登录即可爬取、预览、下载。
+- **图片 / 视频 / 新闻站点地图**：每个任务可选启用 image、video 与 Google News 扩展。
+- **SEO 报告**：每次爬取生成审计报告，支持 CSV / PDF / Word 导出；报告按登录账号隔离。
+- **自动更新与推送**：登记站点后可定时重新爬取，并通过 SFTP / FTP / FTPS 发布结果，支持 IndexNow 通知 Bing / Yandex 等搜索引擎。
+- **账号隔离**：Spring Security 表单登录；用户只能看到本人报告与站点（越权访问返回 404 而非 403）。
+- **双语界面**：完整的中文 / 英文国际化，深色优先响应式设计。
+- **零外部依赖**：内嵌 H2 文件数据库，单一 jar 即可运行。
+
+## 技术栈
+
+Java 21 · Spring Boot 3.5 · Thymeleaf · Spring Security · Jsoup · MyBatis-Plus · H2 · Maven
+
+## 快速开始
+
+环境要求：JDK 21+ 与 Maven 3.9+（可用 `java -version`、`mvn --version` 核对）。
 
 ```sh
-mvn -o verify
+mvn verify
 java -jar target/sitemap-studio-1.0.0.jar
 ```
 
-项目内的 `.mvn/maven.config` 和 HTTPS Maven settings 仅用于项目构建，不修改用户全局配置。如需沿用已有依赖缓存，可显式指定本地仓库（将占位内容替换为实际路径）：
+启动后访问 **http://localhost:8080**。Windows 下可直接运行 `start.bat`：脚本会
+核对工具链版本、执行 `mvn verify` 并前台启动 jar（`Ctrl+C` 停止）。脚本后接的
+参数会透传给应用，例如 `start.bat --server.port=8081`。
+
+数据保存在 `./data/`（H2 文件数据库），删除该目录即可重置。
+
+## 开发与测试
 
 ```sh
-mvn "-Dmaven.repo.local=<已有缓存目录绝对路径>" verify
+mvn test    # 单元与 MockMvc 测试
+mvn verify  # 含测试与打包的完整构建
 ```
 
-`-o` 与 `-Dmaven.repo.local` 是 Maven 参数，可组合使用；请用于手动 Maven 命令，不要作为启动批处理的应用参数传入。离线失败时，应联网补齐所选仓库中的依赖及插件后再试。
+依赖缓存齐备后可离线构建：`mvn -o verify`。项目内的 `.mvn/` 配置只作用于本
+项目构建，不会修改全局 Maven 配置。
 
 ## 使用范围与限制
 
-- 抓取目标仅支持公开可访问的 HTTP(S) 站点，不支持内网、回环地址或本机文件；请遵守目标站点规则，仅对有权抓取的内容发起任务。
-- 单次任务页面上限为 500，不保证收录站点全部页面；抓取结果受网络、站点访问限制及页面链接结构影响。
-- 任务保存在内存中并会过期，重启也会丢失任务；请及时保存生成结果。
+- 仅支持抓取公开可访问的 HTTP(S) 站点，内网、回环地址与本机文件会被拒绝；请遵守目标站点规则，仅抓取有权访问的内容。
+- 单次任务页面上限 500，不保证收录站点全部页面；结果受网络、站点访问限制与链接结构影响。
+- 进行中的爬取任务保存在内存并会过期，任务结果仅在完成后以报告形式持久化。
 
-## 历史演示文件
+## 许可证
 
-旧 Python 脚本（包括 `simple-sitemap-server.py`）和历史测试页面保留供参考。Python 版本仅演示模拟站点地图生成，**不是真实爬虫**，也不是当前主线启动方式。历史页面及说明不作为 Java 主线功能或接口的验证依据。
+Apache License 2.0，详见 [LICENSE](LICENSE)。
