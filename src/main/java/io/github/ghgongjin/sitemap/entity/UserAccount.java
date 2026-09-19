@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
+import lombok.ToString;
 
 import java.time.LocalDateTime;
 
@@ -29,6 +30,10 @@ public class UserAccount {
     @Column(name = "username", nullable = false, unique = true, length = 20)
     private String username;
 
+    /**
+     * 密码散列不参与 toString，避免 @Data 生成的 toString 被写入日志/异常信息时泄露密码哈希
+     */
+    @ToString.Exclude
     @Column(name = "password_hash", nullable = false, length = 100)
     private String passwordHash;
 

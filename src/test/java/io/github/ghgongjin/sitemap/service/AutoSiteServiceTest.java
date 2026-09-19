@@ -260,7 +260,8 @@ class AutoSiteServiceTest {
         assertThatThrownBy(() -> service.runNow(1L, OWNER))
                 .isInstanceOfSatisfying(AutoSiteValidationException.class, error -> {
                     assertThat(error.messageKey()).isEqualTo("auto.error.notFound");
-                    assertThat(error.args()).containsExactly(1L);
+                    // id 以字符串传参：Long 直传会被 MessageFormat 按数字渲染出千分位（1000 -> 1,000）
+                    assertThat(error.args()).containsExactly("1");
                 });
         verify(siteRepository, never()).save(any(AutoSite.class));
     }

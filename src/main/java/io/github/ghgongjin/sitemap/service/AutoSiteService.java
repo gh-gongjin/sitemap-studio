@@ -6,7 +6,7 @@ import io.github.ghgongjin.sitemap.repository.AutoSiteRepository;
 import io.github.ghgongjin.sitemap.repository.AutoSiteVersionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,11 +83,13 @@ public class AutoSiteService {
         AutoSite saved;
         try {
             saved = siteRepository.save(site);
-        } catch (DataAccessException e) {
+        } catch (DataIntegrityViolationException e) {
             // 唯一约束迁移若被降级（旧全局 UNIQUE(site_url) 残留、联合唯一未建），
             // existsByUserIdAndUrl 按 (用户, URL) 判重查不出「他人已托管同一 URL」的冲突，
             // save 时才在库层撞唯一约束。此路径唯一现实成因即为该冲突，归一为 duplicate 提示走
-            // flashError，避免 DataIntegrityViolationException 越过控制器变 whitelabel 500
+            // flashError，避免 DataIntegrityViolationException 越过控制器变 whitelabel 500；
+            // 仅捕获该窄类型，其余 DataAccessException（连接中断、语法错误等）向上传播由全局处理
+            log.warn("auto_site 保存撞唯一约束：{}，{}", normalized, e.getMessage());
             throw new AutoSiteValidationException("auto.error.duplicate", normalized);
         }
         log.info("自动更新站点已注册：{}（用户 {}，每 {} 小时）", normalized, userId, intervalHours);
@@ -238,7 +240,7 @@ public class AutoSiteService {
 
     private AutoSite requireSite(Long id) {
         return siteRepository.findById(id)
-                .orElseThrow(() -> new AutoSiteValidationException("auto.error.notFound", id));
+                .orElseThrow(() -> new AutoSiteValidationException("auto.error.notFound", String.valueOf(id)));
     }
 
     /**
@@ -249,7 +251,7 @@ public class AutoSiteService {
      */
     private AutoSite requireOwned(Long id, Long userId) {
         return findOwned(id, userId)
-                .orElseThrow(() -> new AutoSiteValidationException("auto.error.notFound", id));
+                .orElseThrow(() -> new AutoSiteValidationException("auto.error.notFound", String.valueOf(id)));
     }
 
     private int nextVersionNumber(Long siteId) {
