@@ -127,6 +127,50 @@ class AutoSiteRepositoryTest {
         assertThat(versionRepository.countBySiteId(otherId)).isEqualTo(1);
     }
 
+    @Test
+    void shouldPersistDiffCountsOnVersion() {
+        // Given
+        AutoSiteVersion version = new AutoSiteVersion();
+        version.setSiteId(99L);
+        version.setVersionNumber(2);
+        version.setTaskId("task-diff");
+        version.setUrlCount(3);
+        version.setSitemapXml("<urlset></urlset>");
+        version.setCreatedAt(LocalDateTime.now());
+        version.setDiffAdded(7);
+        version.setDiffRemoved(2);
+        version.setDiffChanged(1);
+
+        // When
+        AutoSiteVersion saved = versionRepository.saveAndFlush(version);
+
+        // Then
+        AutoSiteVersion found = versionRepository.findById(saved.getId()).orElseThrow();
+        assertThat(found.getDiffAdded()).isEqualTo(7);
+        assertThat(found.getDiffRemoved()).isEqualTo(2);
+        assertThat(found.getDiffChanged()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldTreatNullNotifyColumnsAsDefaultsWhenLegacyRow() {
+        // Given：存量站点升级后通知列为 NULL（不写入即 null）
+        AutoSite site = site("https://legacy.example.com", true, LocalDateTime.now(), true);
+        site.setNotifyWebhookUrl("https://hooks.example.com/x");
+
+        // When
+        AutoSite saved = siteRepository.saveAndFlush(site);
+
+        // Then：包装列可读为 null，有效值访问器给出 spec 默认（开/0/-1）
+        AutoSite found = siteRepository.findById(saved.getId()).orElseThrow();
+        assertThat(found.getConsecutiveFailures()).isNull();
+        assertThat(found.getNotifyOnChange()).isNull();
+        assertThat(found.isNotifyOnChangeEffective()).isTrue();
+        assertThat(found.isNotifyOnFailureEffective()).isTrue();
+        assertThat(found.consecutiveFailuresOrZero()).isZero();
+        assertThat(found.notifySeoErrorThresholdOrOff()).isEqualTo(-1);
+        assertThat(found.hasNotifyChannelConfigured()).isTrue();
+    }
+
     private AutoSite site(Long userId, String url) {
         AutoSite site = site(url, true, LocalDateTime.now(), true);
         site.setUserId(userId);

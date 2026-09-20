@@ -247,6 +247,90 @@
     <p class="push-empty" th:if="${#lists.isEmpty(pushLogs)}" th:text="#{auto.push.empty}">还没有推送记录，先保存设置，再点“立即推送”试一次。</p>
   </div>
 
+  <div class="list-panel" th:if="${notify != null}">
+    <div class="list-head">
+      <h3 th:text="#{auto.notify.title}">变更告警</h3>
+      <span class="state"
+            th:classappend="${site.hasNotifyChannelConfigured()} ? 'state-success' : 'state-pending'"
+            th:text="${site.hasNotifyChannelConfigured()} ? #{auto.notify.on} : #{auto.notify.off}">未启用告警</span>
+    </div>
+    <form class="push-form" id="notifyForm" method="post" novalidate
+          th:action="@{/auto/{id}/notify/settings(id=${site.id})}">
+      <div class="push-switches">
+        <label class="switch-row">
+          <span>
+            <b th:text="#{auto.notify.onChange}">URL 变化时通知</b>
+            <i th:text="#{auto.notify.onChange.d}">新版本相对上一版有新增/删除/改动时触发</i>
+          </span>
+          <input type="checkbox" name="notifyOnChange" th:checked="${notify.notifyOnChange}">
+          <span class="sw"></span>
+        </label>
+        <label class="switch-row">
+          <span>
+            <b th:text="#{auto.notify.onFailure}">连续失败时通知</b>
+            <i th:text="#{auto.notify.onFailure.d}">第 1、3、10 次连续更新失败各通知一次</i>
+          </span>
+          <input type="checkbox" name="notifyOnFailure" th:checked="${notify.notifyOnFailure}">
+          <span class="sw"></span>
+        </label>
+      </div>
+
+      <div class="push-group">
+        <h4 class="push-sub" th:text="#{auto.notify.g.channel}">通知渠道</h4>
+        <div class="push-grid">
+          <div class="field">
+            <label class="field-label" for="notifyWebhookUrl" th:text="#{auto.notify.webhookUrl}">Webhook 地址</label>
+            <input id="notifyWebhookUrl" type="text" name="webhookUrl" autocomplete="off"
+                   th:value="${notify.webhookUrl}" th:placeholder="#{auto.notify.webhookUrl.ph}"
+                   placeholder="https://hooks.example.com/sitemap">
+            <p class="field-error" id="whUrlErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="notifySecret" th:text="#{auto.notify.secret}">签名 Secret</label>
+            <input id="notifySecret" type="password" name="webhookSecret" autocomplete="new-password"
+                   th:placeholder="${notify.hasWebhookSecret} ? #{auto.notify.secret.keep} : #{auto.notify.secret.hint}"
+                   placeholder="可选">
+          </div>
+          <div class="field">
+            <label class="field-label" for="notifyEmail" th:text="#{auto.notify.email}">接收邮箱</label>
+            <input id="notifyEmail" type="text" name="email" autocomplete="off" th:value="${notify.email}"
+                   th:placeholder="#{auto.notify.email.ph}" placeholder="ops@example.com">
+            <p class="field-error" id="emailErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+          <div class="field">
+            <label class="field-label" for="notifyThreshold" th:text="#{auto.notify.seoThreshold}">SEO 错误阈值</label>
+            <input id="notifyThreshold" type="text" name="seoErrorThreshold" inputmode="numeric"
+                   autocomplete="off" th:value="${notify.seoErrorThreshold}">
+            <p class="field-error" id="thresholdErr" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+              <span></span>
+            </p>
+          </div>
+        </div>
+        <p class="push-note" th:text="#{auto.notify.threshold.hint}">-1 关闭阈值通知</p>
+        <p class="push-note" th:if="${notifyPrivateAllowed}" th:text="#{auto.notify.private.warn}">私网告警提示</p>
+      </div>
+
+      <div class="actions push-actions">
+        <button class="btn primary" type="submit" th:text="#{auto.notify.save}">保存设置</button>
+      </div>
+      <p class="note" th:text="#{auto.notify.hint}">测试通知按已保存的设置投递。</p>
+    </form>
+    <div class="push-actions outside">
+      <div class="actions">
+        <form method="post" th:action="@{/auto/{id}/notify/test(id=${site.id})}">
+          <button class="btn" type="submit" th:text="#{auto.notify.test}">发送测试通知</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="list-panel" th:if="${!#lists.isEmpty(pushLogs)}">
     <div class="list-head">
       <h3 th:text="#{auto.push.logs}">推送记录</h3>
@@ -296,6 +380,7 @@
           <tr>
             <th th:text="#{auto.th.vno}">版本</th>
             <th th:text="#{auto.th.urls}">URL 数</th>
+            <th th:text="#{auto.th.changes}">变化</th>
             <th th:text="#{auto.th.time}">生成时间</th>
             <th th:text="#{auto.th.actions}">操作</th>
           </tr>
@@ -304,6 +389,12 @@
           <tr th:each="v : ${versions}">
             <td class="pr mono" th:text="${'v' + v.versionNumber}">v1</td>
             <td class="lm" th:text="${v.urlCount}">0</td>
+            <td class="lm diff-badges">
+              <span th:if="${v.versionNumber == 1}" class="state state-pending" th:text="#{auto.diff.first}">首个快照</span>
+              <a th:unless="${v.versionNumber == 1}" class="link mono"
+                 th:href="@{/auto/{id}/versions/{v}/diff(id=${site.id}, v=${v.versionNumber})}"
+                 th:text="${'+' + v.diffAdded + ' −' + v.diffRemoved + ' ~' + v.diffChanged}">+0 −0 ~0</a>
+            </td>
             <td class="lm" th:text="${v.createdAt != null ? #temporals.format(v.createdAt, 'yyyy-MM-dd HH:mm') : '—'}">—</td>
             <td>
               <a class="link" th:href="@{/auto/{id}/download(id=${site.id}, version=${v.versionNumber})}"
@@ -444,6 +535,30 @@
       });
     });
   }
+})();
+</script>
+<script th:inline="javascript">
+(function () {
+  var form = document.getElementById("notifyForm");
+  if (!form) return;
+  var msgs = {
+    webhook: /*[[#{auto.notify.err.webhookClient}]]*/ 'Webhook 地址需以 http:// 或 https:// 开头',
+    email: /*[[#{auto.notify.err.email}]]*/ '邮箱格式不正确',
+    threshold: /*[[#{auto.notify.err.threshold}]]*/ 'SEO 错误阈值需为 -1 或 0-100000'
+  };
+  SitemapUI.formGuard({
+    form: form,
+    rules: [
+      { input: form.querySelector("input[name=webhookUrl]"), error: document.getElementById("whUrlErr"),
+        test: function (v) { return v.length === 0 || /^https?:\/\/\S+$/.test(v); }, message: msgs.webhook },
+      { input: form.querySelector("input[name=email]"), error: document.getElementById("emailErr"),
+        test: function (v) { return v.length === 0 || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); },
+        message: msgs.email },
+      { input: form.querySelector("input[name=seoErrorThreshold]"), error: document.getElementById("thresholdErr"),
+        test: function (v) { return /^-?\d+$/.test(v) && (v === "-1" || (Number(v) >= 0 && Number(v) <= 100000)); },
+        message: msgs.threshold }
+    ]
+  });
 })();
 </script>
 </body>

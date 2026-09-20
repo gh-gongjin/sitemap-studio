@@ -170,26 +170,30 @@ public class AutoSiteService {
     }
 
     /**
-     * 记录成功：写入新版本（版本号递增），裁剪超出保留数的旧版本
+     * 记录成功：写入新版本（版本号递增，附带与上一版的 diff 计数），裁剪超出保留数的旧版本
      */
     @Transactional
     public AutoSite recordSuccess(Long id, String taskId, String sitemapXml, int urlCount) {
         AutoSite site = requireSite(id);
         LocalDateTime now = LocalDateTime.now();
 
+        AutoSiteVersion previous = versionRepository
+                .findTopBySiteIdOrderByVersionNumberDesc(site.getId()).orElse(null);
         AutoSiteVersion version = new AutoSiteVersion();
         version.setSiteId(site.getId());
-        version.setVersionNumber(nextVersionNumber(site.getId()));
+        version.setVersionNumber(previous == null ? 1 : previous.getVersionNumber() + 1);
         version.setTaskId(taskId);
         version.setUrlCount(urlCount);
         version.setSitemapXml(sitemapXml);
         version.setCreatedAt(now);
+        applyDiffCounts(version, previous, sitemapXml, id);
         versionRepository.save(version);
         trimVersions(site.getId());
 
         site.setLastRunAt(now);
         site.setLastStatus(STATUS_SUCCESS);
         site.setLastMessage(null);
+        site.setConsecutiveFailures(0);
         site.setNextRunAt(now.plusHours(site.getIntervalHours()));
         site.setUpdatedAt(now);
         AutoSite saved = siteRepository.save(site);
@@ -198,7 +202,24 @@ public class AutoSiteService {
     }
 
     /**
-     * 记录失败：不写版本（历史版本保持可用），并按间隔排下一次
+     * 首版恒 0/0/0；diff 计算异常（历史 XML 缺失/损坏）时保持 0/0/0 并 WARN，版本照常保存
+     */
+    private void applyDiffCounts(AutoSiteVersion version, AutoSiteVersion previous, String sitemapXml, Long siteId) {
+        if (previous == null) {
+            return;
+        }
+        try {
+            SiteDiffEngine.SiteDiff diff = SiteDiffEngine.diff(previous.getSitemapXml(), sitemapXml);
+            version.setDiffAdded(diff.added().size());
+            version.setDiffRemoved(diff.removed().size());
+            version.setDiffChanged(diff.changed().size());
+        } catch (Exception e) {
+            log.warn("版本 diff 计算失败（siteId={}）：{}", siteId, e.getMessage());
+        }
+    }
+
+    /**
+     * 记录失败：不写版本（历史版本保持可用），连续失败计数递增，并按间隔排下一次
      */
     @Transactional
     public AutoSite recordFailure(Long id, String message) {
@@ -207,6 +228,7 @@ public class AutoSiteService {
         site.setLastRunAt(now);
         site.setLastStatus(STATUS_FAILED);
         site.setLastMessage(trimMessage(message));
+        site.setConsecutiveFailures(site.consecutiveFailuresOrZero() + 1);
         site.setNextRunAt(now.plusHours(site.getIntervalHours()));
         site.setUpdatedAt(now);
         AutoSite saved = siteRepository.save(site);
@@ -252,12 +274,6 @@ public class AutoSiteService {
     private AutoSite requireOwned(Long id, Long userId) {
         return findOwned(id, userId)
                 .orElseThrow(() -> new AutoSiteValidationException("auto.error.notFound", String.valueOf(id)));
-    }
-
-    private int nextVersionNumber(Long siteId) {
-        return versionRepository.findTopBySiteIdOrderByVersionNumberDesc(siteId)
-                .map(latest -> latest.getVersionNumber() + 1)
-                .orElse(1);
     }
 
     private void trimVersions(Long siteId) {

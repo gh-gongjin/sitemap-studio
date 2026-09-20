@@ -177,7 +177,8 @@ class AutoAccessControlTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "/auto/1/run", "/auto/1/toggle", "/auto/1/delete",
-            "/auto/1/push/settings", "/auto/1/push/test", "/auto/1/push/run", "/auto/1", "/auto/1/download"
+            "/auto/1/push/settings", "/auto/1/push/test", "/auto/1/push/run", "/auto/1", "/auto/1/download",
+            "/auto/1/notify/settings", "/auto/1/notify/test"
     })
     void shouldRedirectGuestFromEveryAutoSiteOperation(String path) throws Exception {
         // Given / When: 游客打全部写操作与详情/下载端点（刻意不传任何表单参数、站点也不存在）

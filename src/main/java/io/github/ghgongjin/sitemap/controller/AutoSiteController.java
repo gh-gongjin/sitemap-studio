@@ -1,10 +1,18 @@
 package io.github.ghgongjin.sitemap.controller;
 
+import io.github.ghgongjin.sitemap.config.NotifyProperties;
 import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.security.SecurityUtils;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
+import io.github.ghgongjin.sitemap.service.Csv;
+import io.github.ghgongjin.sitemap.service.SiteDiffEngine;
+import io.github.ghgongjin.sitemap.service.notify.NotificationService;
+import io.github.ghgongjin.sitemap.service.notify.NotifyOutcome;
+import io.github.ghgongjin.sitemap.service.notify.NotifySettings;
+import io.github.ghgongjin.sitemap.service.notify.NotifySettingsService;
+import io.github.ghgongjin.sitemap.service.notify.NotifyTestLimiter;
 import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.PushSettings;
@@ -47,6 +55,10 @@ public class AutoSiteController {
     private final AutoSiteService autoSiteService;
     private final PushConfigService pushConfigService;
     private final SitemapPushService sitemapPushService;
+    private final NotifySettingsService notifySettingsService;
+    private final NotificationService notificationService;
+    private final NotifyTestLimiter notifyTestLimiter;
+    private final NotifyProperties notifyProperties;
 
     @GetMapping
     public String list(Model model) {
@@ -141,6 +153,38 @@ public class AutoSiteController {
                 () -> sitemapPushService.push(id));
     }
 
+    @PostMapping("/{id}/notify/settings")
+    public String saveNotifySettings(@PathVariable Long id,
+                                     @RequestParam(value = "notifyOnChange", defaultValue = "false") boolean notifyOnChange,
+                                     @RequestParam(value = "notifyOnFailure", defaultValue = "false") boolean notifyOnFailure,
+                                     @RequestParam(value = "webhookUrl", defaultValue = "") String webhookUrl,
+                                     @RequestParam(value = "webhookSecret", defaultValue = "") String webhookSecret,
+                                     @RequestParam(value = "email", defaultValue = "") String email,
+                                     @RequestParam(value = "seoErrorThreshold", defaultValue = "-1") int seoErrorThreshold,
+                                     RedirectAttributes redirect) {
+        requireOwned(id, SecurityUtils.currentUserId());
+        NotifySettings settings = new NotifySettings(notifyOnChange, notifyOnFailure,
+                webhookUrl, webhookSecret, email, seoErrorThreshold);
+        return mutate(redirect, "auto.notify.flash.saved", detailPath(id),
+                () -> notifySettingsService.save(id, SecurityUtils.currentUserId(), settings));
+    }
+
+    @PostMapping("/{id}/notify/test")
+    public String testNotify(@PathVariable Long id, RedirectAttributes redirect) {
+        requireOwned(id, SecurityUtils.currentUserId());
+        if (!notifyTestLimiter.allow(id)) {
+            redirect.addFlashAttribute("flashError", "auto.notify.flash.rateLimited");
+            return "redirect:" + detailPath(id);
+        }
+        NotifyOutcome outcome = notificationService.test(id);
+        if (outcome.success()) {
+            redirect.addFlashAttribute("flash", outcome.messageKey());
+        } else {
+            redirect.addFlashAttribute("flashError", outcome.messageKey());
+        }
+        return "redirect:" + detailPath(id);
+    }
+
     @GetMapping("/{id}")
     public String detail(@PathVariable Long id, Model model) {
         Long userId = SecurityUtils.currentUserId();
@@ -149,6 +193,8 @@ public class AutoSiteController {
         model.addAttribute("versions", autoSiteService.versions(id));
         model.addAttribute("pushConfig", pushConfigService.view(id).orElse(null));
         model.addAttribute("pushLogs", pushConfigService.logs(id));
+        model.addAttribute("notify", notifySettingsService.view(id).orElse(null));
+        model.addAttribute("notifyPrivateAllowed", notifyProperties.isAllowPrivateNetwork());
         return "auto-detail";
     }
 
@@ -168,6 +214,103 @@ public class AutoSiteController {
         headers.setContentDispositionFormData("attachment", "sitemap-v" + target.getVersionNumber() + ".xml");
         headers.setContentLength(body.length);
         return ResponseEntity.ok().headers(headers).body(body);
+    }
+
+    @GetMapping("/{id}/versions/{v}/diff")
+    public String diffPage(@PathVariable Long id, @PathVariable("v") int v, Model model) {
+        AutoSite site = requireOwned(id, SecurityUtils.currentUserId());
+        AutoSiteVersion version = requireVersion(id, v);
+        model.addAttribute("site", site);
+        model.addAttribute("version", version);
+        model.addAttribute("view", diffView(id, version));
+        return "auto-diff";
+    }
+
+    @GetMapping("/{id}/versions/{v}/diff.csv")
+    public ResponseEntity<byte[]> diffCsv(@PathVariable Long id, @PathVariable("v") int v) {
+        requireOwned(id, SecurityUtils.currentUserId());
+        AutoSiteVersion version = requireVersion(id, v);
+        DiffResolution resolution = resolveDiff(id, version);
+        if (!"OK".equals(resolution.state())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        // Export the FULL diff (not the page's 100-row preview cap): same source/version resolution as the page.
+        SiteDiffEngine.SiteDiff diff = resolution.diff();
+        StringBuilder csv = new StringBuilder("\uFEFF");
+        Csv.row(csv, "type", "url");
+        diff.added().forEach(url -> Csv.row(csv, "added", url));
+        diff.removed().forEach(url -> Csv.row(csv, "removed", url));
+        diff.changed().forEach(url -> Csv.row(csv, "changed", url));
+        byte[] body = csv.toString().getBytes(StandardCharsets.UTF_8);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(new MediaType("text", "csv", StandardCharsets.UTF_8));
+        headers.setContentDispositionFormData("attachment", "sitemap-diff-v" + v + ".csv");
+        headers.setContentLength(body.length);
+        return ResponseEntity.ok().headers(headers).body(body);
+    }
+
+    private AutoSiteVersion requireVersion(Long id, int v) {
+        return autoSiteService.version(id, v)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    /**
+     * diff 明细统一实时算：v1=FIRST；上一版已被裁剪/XML 缺失/解析异常=UNAVAILABLE；否则 OK（携带全量 SiteDiff）。
+     * 页面据此截断预览 100 条，CSV 导出全量——「无法比较」两处语义一致（页面占位 / CSV 404）。
+     */
+    private DiffResolution resolveDiff(Long siteId, AutoSiteVersion version) {
+        if (version.getVersionNumber() == 1) {
+            return new DiffResolution("FIRST", null);
+        }
+        AutoSiteVersion previous = autoSiteService.version(siteId, version.getVersionNumber() - 1)
+                .orElse(null);
+        if (previous == null) {
+            return new DiffResolution("UNAVAILABLE", null);
+        }
+        try {
+            return new DiffResolution("OK",
+                    SiteDiffEngine.diff(previous.getSitemapXml(), version.getSitemapXml()));
+        } catch (Exception e) {
+            log.warn("版本 diff 实时计算失败：siteId={}, v={}, {}", siteId, version.getVersionNumber(), e.getMessage());
+            return new DiffResolution("UNAVAILABLE", null);
+        }
+    }
+
+    /** resolveDiff 结果：state ∈ {FIRST, UNAVAILABLE, OK}，diff 仅 OK 时非空（全量，未截断） */
+    private record DiffResolution(String state, SiteDiffEngine.SiteDiff diff) {
+    }
+
+    /**
+     * 详情页预览模型：由 resolveDiff 的全量 diff 每组截断至 PREVIEW_LIMIT；明细按需实时算
+     */
+    private DiffView diffView(Long siteId, AutoSiteVersion version) {
+        DiffResolution resolution = resolveDiff(siteId, version);
+        return DiffView.of(resolution.state(), resolution.diff());
+    }
+
+    // 模板 SpEL 需反射调用 overflow()：record 与方法必须 public，包私有会抛 IllegalAccessException
+    public record DiffView(String state, List<String> added, List<String> removed, List<String> changed,
+                    int addedCount, int removedCount, int changedCount) {
+
+        static final int PREVIEW_LIMIT = 100;
+
+        static DiffView of(String state, SiteDiffEngine.SiteDiff diff) {
+            if (diff == null) {
+                return new DiffView(state, List.of(), List.of(), List.of(), 0, 0, 0);
+            }
+            return new DiffView(state,
+                    diff.added().stream().limit(PREVIEW_LIMIT).toList(),
+                    diff.removed().stream().limit(PREVIEW_LIMIT).toList(),
+                    diff.changed().stream().limit(PREVIEW_LIMIT).toList(),
+                    diff.added().size(), diff.removed().size(), diff.changed().size());
+        }
+
+        public int overflow() {
+            // 三组各自溢出求和：任一组超限时「另有 N 条未显示」都足量报告，取 max 会少报
+            return Math.max(0, addedCount - PREVIEW_LIMIT)
+                    + Math.max(0, removedCount - PREVIEW_LIMIT)
+                    + Math.max(0, changedCount - PREVIEW_LIMIT);
+        }
     }
 
     private String mutate(RedirectAttributes redirect, String flashKey, String path, Runnable action) {

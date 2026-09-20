@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN" th:lang="${#locale.language == 'zh'} ? 'zh-CN' : 'en'" xmlns:th="http://www.thymeleaf.org">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#07080a">
+<title th:text="#{title.autoDiff}">Sitemap Studio · 变更差异</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: bgfx}"></div>
+<header th:replace="~{fragments/layout :: topbar(active='auto', langZh=@{/auto/{id}/versions/{v}/diff(id=${site.id}, v=${version.versionNumber}, lang='zh-CN')}, langEn=@{/auto/{id}/versions/{v}/diff(id=${site.id}, v=${version.versionNumber}, lang='en')})}"></header>
+
+<main class="rise">
+  <div class="prose-head">
+    <span class="tag" th:text="#{auto.diff.tag}">变更差异</span>
+    <h2 class="mono url-title" th:text="${site.url}">https://example.com</h2>
+    <p class="lede" th:text="#{auto.diff.lede(${version.versionNumber})}">版本对比说明</p>
+  </div>
+
+  <div class="panel flash ok" th:if="${flash != null}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    <span th:text="${#messages.msg(flash)}">已保存。</span>
+  </div>
+  <div class="panel flash" th:if="${flashError != null}"
+       th:with="errorText=${flashErrorArgs != null}
+             ? ${#messages.msgOrNullWithParams(flashError, flashErrorArgs)}
+             : ${#messages.msgOrNull(flashError)}">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+    <span th:text="${errorText} ?: ${flashError}">操作失败。</span>
+  </div>
+
+  <div class="panel" th:if="${view.state == 'FIRST'}">
+    <p class="note" th:text="#{auto.diff.first}">首个快照</p>
+    <div class="actions">
+      <a class="btn" th:href="@{/auto/{id}(id=${site.id})}" th:text="#{auto.diff.back}">返回版本历史</a>
+    </div>
+  </div>
+
+  <div class="panel" th:if="${view.state == 'UNAVAILABLE'}">
+    <p class="note" th:text="#{auto.diff.unavailable}">无法比较</p>
+    <div class="actions">
+      <a class="btn" th:href="@{/auto/{id}(id=${site.id})}" th:text="#{auto.diff.back}">返回版本历史</a>
+    </div>
+  </div>
+
+  <div th:if="${view.state == 'OK'}">
+    <div class="panel">
+      <div class="meters">
+        <div class="meter"><b th:text="${'+' + view.addedCount}">+0</b><span th:text="#{auto.diff.added}">新增</span></div>
+        <div class="meter"><b th:text="${'−' + view.removedCount}">-0</b><span th:text="#{auto.diff.removed}">删除</span></div>
+        <div class="meter"><b th:text="${'~' + view.changedCount}">~0</b><span th:text="#{auto.diff.changed}">改动</span></div>
+      </div>
+      <p class="note" th:if="${view.addedCount + view.removedCount + view.changedCount == 0}" th:text="#{auto.diff.none}">与上一版本没有差异</p>
+      <p class="note" th:if="${view.overflow() > 0}" th:text="#{auto.diff.more(${view.overflow()})}">另有 N 条未显示</p>
+      <div class="actions">
+        <a class="btn primary" th:href="@{/auto/{id}/versions/{v}/diff.csv(id=${site.id}, v=${version.versionNumber})}"
+           th:text="#{auto.diff.download}">下载完整 diff CSV</a>
+        <a class="btn" th:href="@{/auto/{id}(id=${site.id})}" th:text="#{auto.diff.back}">返回版本历史</a>
+      </div>
+    </div>
+
+    <div class="list-panel" th:if="${!#lists.isEmpty(view.added)}">
+      <div class="list-head"><h3 th:text="#{auto.diff.added}">新增</h3></div>
+      <div class="list-scroll"><table class="url-table"><tbody>
+        <tr th:each="u : ${view.added}"><td class="lm mono" th:text="${u}">url</td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="list-panel" th:if="${!#lists.isEmpty(view.removed)}">
+      <div class="list-head"><h3 th:text="#{auto.diff.removed}">删除</h3></div>
+      <div class="list-scroll"><table class="url-table"><tbody>
+        <tr th:each="u : ${view.removed}"><td class="lm mono" th:text="${u}">url</td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="list-panel" th:if="${!#lists.isEmpty(view.changed)}">
+      <div class="list-head"><h3 th:text="#{auto.diff.changed}">改动</h3></div>
+      <div class="list-scroll"><table class="url-table"><tbody>
+        <tr th:each="u : ${view.changed}"><td class="lm mono" th:text="${u}">url</td></tr>
+      </tbody></table></div>
+    </div>
+  </div>
+</main>
+
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+<div th:replace="~{fragments/layout :: toast}"></div>
+<script th:src="@{/js/app.js}"></script>
+</body>
+</html>

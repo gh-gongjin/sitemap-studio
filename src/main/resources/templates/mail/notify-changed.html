@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+  <h3 th:text="'站点有更新 / Site updated'"></h3>
+  <p><b th:text="${p.siteUrl}">https://example.com</b></p>
+  <p th:text="'版本 Version: v' + ${p.versionNumber}"></p>
+  <p th:text="'新增 Added: +' + ${p.added} + ' / 删除 Removed: -' + ${p.removed} + ' / 改动 Changed: ~' + ${p.changed}"></p>
+  <p th:if="${p.seoErrorCount != null}" th:text="'SEO 错误 Errors: ' + ${p.seoErrorCount} + ' / 阈值 Threshold: ' + ${p.seoErrorThreshold}"></p>
+  <p style="color:#888;font-size:12px" th:text="'Sitemap Studio · ' + ${p.occurredAt}"></p>
+</body>
+</html>

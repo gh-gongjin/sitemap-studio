@@ -403,20 +403,7 @@ public class SeoReportService {
     }
 
     private void csvRow(StringBuilder csv, Object... cells) {
-        for (int i = 0; i < cells.length; i++) {
-            if (i > 0) {
-                csv.append(',');
-            }
-            String value = cells[i] == null ? "" : cells[i].toString();
-            String stripped = value.stripLeading();
-            // CSV 引号不能阻止表格软件执行公式，外部文本需额外强制为文本。
-            if ((!stripped.isEmpty() && "=+-@".indexOf(stripped.charAt(0)) >= 0)
-                    || value.startsWith("\t") || value.startsWith("\r") || value.startsWith("\n")) {
-                value = "'" + value;
-            }
-            csv.append('"').append(value.replace("\"", "\"\"")).append('"');
-        }
-        csv.append("\r\n");
+        Csv.row(csv, cells);
     }
 
     private String writeIssues(List<SeoAuditService.Issue> issues) {
