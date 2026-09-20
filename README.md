@@ -62,7 +62,7 @@ Requirements: JDK 21+ and Maven 3.9+ (`java -version`, `mvn --version`).
 
 ```sh
 mvn verify
-java -jar target/sitemap-studio-1.0.0.jar
+java -jar target/sitemap-studio-1.1.0.jar
 ```
 
 Open **http://localhost:8080**. On Windows you can run `start.bat`, which checks
@@ -129,7 +129,7 @@ Java 21 · Spring Boot 3.5 · Thymeleaf · Spring Security · Jsoup · MyBatis-P
 
 ```sh
 mvn verify
-java -jar target/sitemap-studio-1.0.0.jar
+java -jar target/sitemap-studio-1.1.0.jar
 ```
 
 启动后访问 **http://localhost:8080**。Windows 下可直接运行 `start.bat`：脚本会
