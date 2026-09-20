@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Data;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
 
@@ -48,6 +49,11 @@ public class SeoReport {
     @Column(name = "broken_links", nullable = false)
     private int brokenLinks;
 
+    /**
+     * 显式 DEFAULT：ddl-auto=update 对存量 seo_report 行加此 NOT NULL 列时，
+     * H2 需用默认值回填旧行；无默认值的 ALTER 在启动期静默失败会导致运行期查询 500。
+     */
+    @ColumnDefault("0")
     @Column(name = "skipped_pages", nullable = false)
     private int skippedPages;
 
