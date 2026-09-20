@@ -67,6 +67,17 @@ public class SeoAuditService {
     }
 
     /**
+     * 记录跳过的页面：不纳入站点地图与评分（noindex、非 HTML、robots 禁止等）
+     */
+    public void recordSkipped(String taskId, String url, String reason) {
+        AuditState state = stateOf(taskId);
+        if (state == null) {
+            return;
+        }
+        state.skippedPages++;
+    }
+
+    /**
      * 记录断链：抓取返回 4xx/5xx
      */
     public void recordBroken(String taskId, String url, int statusCode) {
@@ -120,7 +131,7 @@ public class SeoAuditService {
         double worst = (double) ERROR_WEIGHT * Math.max(1, pages);
         int score = (int) Math.round(100 * Math.max(0, 1 - weight / worst));
 
-        return new AuditSummary(score, pages, state.brokenLinks, errors, warnings, infos, truncated,
+        return new AuditSummary(score, pages, state.brokenLinks, state.skippedPages, errors, warnings, infos, truncated,
                 Collections.unmodifiableList(issues));
     }
 
@@ -233,12 +244,12 @@ public class SeoAuditService {
     public record Issue(String rule, Severity severity, String url, String detail) {
     }
 
-    public record AuditSummary(int score, int pagesAudited, int brokenLinks,
+    public record AuditSummary(int score, int pagesAudited, int brokenLinks, int skippedPages,
                                int errorCount, int warningCount, int infoCount,
                                boolean truncated, List<Issue> issues) {
 
         static AuditSummary empty() {
-            return new AuditSummary(0, 0, 0, 0, 0, 0, false, List.of());
+            return new AuditSummary(0, 0, 0, 0, 0, 0, 0, false, List.of());
         }
     }
 
@@ -247,6 +258,7 @@ public class SeoAuditService {
         private final List<Issue> issues = new ArrayList<>();
         private int pagesAudited;
         private int brokenLinks;
+        private int skippedPages;
         private boolean truncated;
     }
 }

@@ -35,6 +35,8 @@
       <div class="meter"><b th:text="${videoCount}">0</b><span th:text="#{preview.m.videos}">视频条目</span></div>
       <div class="meter"><b th:text="${newsCount}">0</b><span th:text="#{preview.m.news}">新闻条目</span></div>
       <div class="meter"><b th:text="${#strings.isEmpty(lastmod)} ? '—' : ${lastmod}">—</b><span th:text="#{preview.m.lastmod}">最后更新</span></div>
+      <div class="meter stat-broken" th:if="${reportAvailable}"><b th:text="${brokenLinks}">0</b><span th:text="#{report.m.broken}">断链</span></div>
+      <div class="meter stat-skipped" th:if="${reportAvailable}"><b th:text="${skippedPages}">0</b><span th:text="#{report.m.skipped}">跳过</span></div>
     </div>
     <div class="opt-strip">
       <span th:text="#{preview.include.images}">包含图片：</span>

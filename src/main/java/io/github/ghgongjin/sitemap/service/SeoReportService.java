@@ -66,6 +66,7 @@ public class SeoReportService {
         report.setScore(summary.score());
         report.setPagesAudited(summary.pagesAudited());
         report.setBrokenLinks(summary.brokenLinks());
+        report.setSkippedPages(summary.skippedPages());
         report.setErrorCount(summary.errorCount());
         report.setWarningCount(summary.warningCount());
         report.setInfoCount(summary.infoCount());
@@ -131,6 +132,7 @@ public class SeoReportService {
         csvRow(csv, message("reports.th.score", locale), report.getScore(), "", "");
         csvRow(csv, message("report.m.pages", locale), report.getPagesAudited(), "", "");
         csvRow(csv, message("report.m.broken", locale), report.getBrokenLinks(), "", "");
+        csvRow(csv, message("report.m.skipped", locale), report.getSkippedPages(), "", "");
         csvRow(csv, message("report.m.errors", locale), report.getErrorCount(), "", "");
         csvRow(csv, message("report.m.warnings", locale), report.getWarningCount(), "", "");
         csvRow(csv, message("report.m.infos", locale), report.getInfoCount(), "", "");
@@ -202,6 +204,7 @@ public class SeoReportService {
                     message("reports.th.score", locale) + ": " + report.getScore(),
                     message("report.m.pages", locale) + ": " + report.getPagesAudited(),
                     message("report.m.broken", locale) + ": " + report.getBrokenLinks(),
+                    message("report.m.skipped", locale) + ": " + report.getSkippedPages(),
                     message("report.m.errors", locale) + ": " + report.getErrorCount(),
                     message("report.m.warnings", locale) + ": " + report.getWarningCount(),
                     message("report.m.infos", locale) + ": " + report.getInfoCount()
@@ -323,6 +326,7 @@ public class SeoReportService {
             addMetaLine(doc, fontName, message("reports.th.score", locale) + ": " + report.getScore());
             addMetaLine(doc, fontName, message("report.m.pages", locale) + ": " + report.getPagesAudited());
             addMetaLine(doc, fontName, message("report.m.broken", locale) + ": " + report.getBrokenLinks());
+            addMetaLine(doc, fontName, message("report.m.skipped", locale) + ": " + report.getSkippedPages());
             addMetaLine(doc, fontName, message("report.m.errors", locale) + ": " + report.getErrorCount());
             addMetaLine(doc, fontName, message("report.m.warnings", locale) + ": " + report.getWarningCount());
             addMetaLine(doc, fontName, message("report.m.infos", locale) + ": " + report.getInfoCount());
