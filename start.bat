@@ -34,7 +34,7 @@ echo Default address: http://localhost:8080
 echo Wait for Spring Boot startup logs before opening the page.
 echo Press Ctrl+C to stop the application.
 echo.
-java -jar "target/sitemap-studio-1.1.0.jar" %*
+java -jar "target/sitemap-studio-1.1.1.jar" %*
 set "EXIT_CODE=%errorlevel%"
 goto finish
 
