@@ -48,6 +48,9 @@ public class SeoReport {
     @Column(name = "broken_links", nullable = false)
     private int brokenLinks;
 
+    @Column(name = "skipped_pages", nullable = false)
+    private int skippedPages;
+
     @Column(name = "error_count", nullable = false)
     private int errorCount;
 

@@ -77,7 +77,7 @@ class ReportExportIntegrationTest {
         assertThat(response.getContentAsString(StandardCharsets.UTF_8)).contains(
                 "\"网站\",\"" + report.getSiteUrl() + "\",\"\",\"\"\r\n",
                 "\"任务\",\"export-test\"", "\"生成时间\",\"2026-09-18 20:30:15\"",
-                "\"评分\",\"75\"", "\"已审核页面\",\"12\"", "\"断链\",\"1\"",
+                "\"评分\",\"75\"", "\"已审核页面\",\"12\"", "\"断链\",\"1\"", "\"跳过\",\"5\"",
                 "\"错误\",\"2\"", "\"警告\",\"3\"", "\"提示\",\"4\"");
     }
 
@@ -252,6 +252,7 @@ class ReportExportIntegrationTest {
         report.setScore(75);
         report.setPagesAudited(12);
         report.setBrokenLinks(1);
+        report.setSkippedPages(5);
         report.setErrorCount(2);
         report.setWarningCount(3);
         report.setInfoCount(4);

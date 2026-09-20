@@ -47,7 +47,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -470,7 +469,7 @@ class SitemapControllerTest {
     @Test
     void shouldRenderSeoReportWhenReportStored() throws Exception {
         // Given: a persisted report whose issue list is stored as JSON.
-        when(seoReport.findOwned("task-report", USER_ID)).thenReturn(Optional.of(report(70, 2, 1, 1, 0, 0)));
+        when(seoReport.findOwned("task-report", USER_ID)).thenReturn(Optional.of(report(70, 2, 1, 4, 1, 0, 0)));
         when(seoReport.parseIssues(anyString())).thenReturn(List.of(
                 new SeoAuditService.Issue("broken-link", SeoAuditService.Severity.ERROR, URL + "/missing", "404"),
                 new SeoAuditService.Issue("missing-title", SeoAuditService.Severity.WARNING, URL, "")));
@@ -482,7 +481,7 @@ class SitemapControllerTest {
         assertThat(page.selectFirst(".score-box b").text()).isEqualTo("70");
         assertThat(page.selectFirst(".score-box span").text()).isEqualTo("良好");
         assertThat(page.select(".meters.side .meter b").eachText())
-                .containsExactly("2", "1", "1", "0", "0");
+                .containsExactly("2", "1", "4", "1", "0", "0");
         assertThat(page.select(".report-table tbody tr")).hasSize(2);
         assertThat(page.select(".report-table .sev").eachText()).containsExactly("错误", "警告");
         assertThat(page.select(".report-table .rule-name").eachText()).containsExactly("断链", "缺少 title");
@@ -493,7 +492,7 @@ class SitemapControllerTest {
     @Test
     void shouldRenderCleanStateWhenReportHasNoIssues() throws Exception {
         // Given
-        when(seoReport.findOwned("task-clean", USER_ID)).thenReturn(Optional.of(report(100, 3, 0, 0, 0, 0)));
+        when(seoReport.findOwned("task-clean", USER_ID)).thenReturn(Optional.of(report(100, 3, 0, 0, 0, 0, 0)));
         when(seoReport.parseIssues(anyString())).thenReturn(List.of());
 
         // When
@@ -510,8 +509,8 @@ class SitemapControllerTest {
     void shouldRenderReportListWhenReportsStored() throws Exception {
         // Given
         when(seoReport.recent(USER_ID)).thenReturn(List.of(
-                report(70, 2, 1, 1, 0, 0),
-                report(100, 5, 0, 0, 0, 0)));
+                report(70, 2, 1, 0, 1, 0, 0),
+                report(100, 5, 0, 0, 0, 0, 0)));
 
         // When
         Document page = render(get("/reports"));
@@ -538,9 +537,41 @@ class SitemapControllerTest {
     }
 
     @Test
+    void shouldShowBrokenAndSkippedMetersInPreviewWhenReportStored() throws Exception {
+        // Given: a finished task whose persisted report carries broken and skipped counts.
+        String taskId = completeAsyncTask(true, true, RICH_XML);
+        when(seoReport.findByTaskId(taskId))
+                .thenReturn(Optional.of(report(70, 3, 2, 4, 1, 0, 0)));
+
+        // When
+        Document page = render(get("/preview").param("taskId", taskId));
+
+        // Then: the two stat meters append after the sitemap meters, in zh labels.
+        assertThat(page.select(".meter b").eachText())
+                .containsExactly("3", "2", "1", "0", "2026-09-20", "2", "4");
+        assertThat(page.selectFirst(".meter.stat-broken span").text()).isEqualTo("断链");
+        assertThat(page.selectFirst(".meter.stat-skipped span").text()).isEqualTo("跳过");
+    }
+
+    @Test
+    void shouldHideBrokenAndSkippedMetersInPreviewWhenReportMissing() throws Exception {
+        // Given: a finished task without any persisted report (mock findByTaskId returns empty).
+        String taskId = completeAsyncTask(true, true, RICH_XML);
+
+        // When
+        Document page = render(get("/preview").param("taskId", taskId));
+
+        // Then: sitemap meters unchanged, no stat meters.
+        assertThat(page.select(".meter b").eachText())
+                .containsExactly("3", "2", "1", "0", "2026-09-20");
+        assertThat(page.select(".meter.stat-broken")).isEmpty();
+        assertThat(page.select(".meter.stat-skipped")).isEmpty();
+    }
+
+    @Test
     void shouldShowReportLinkInPreviewWhenReportStored() throws Exception {
         // Given: report lookup is stubbed before the crawl thread touches the same mock.
-        doReturn(true).when(seoReport).hasReport(anyString());
+        when(seoReport.findByTaskId(anyString())).thenReturn(Optional.of(report(100, 1, 0, 0, 0, 0, 0)));
         String taskId = completeAsyncTask(false, false);
 
         // When
@@ -563,13 +594,15 @@ class SitemapControllerTest {
         assertThat(page.select("a[href^=\"/report/\"]")).isEmpty();
     }
 
-    private SeoReport report(int score, int pages, int broken, int errors, int warnings, int infos) {
+    private SeoReport report(int score, int pages, int broken, int skipped,
+                             int errors, int warnings, int infos) {
         SeoReport report = new SeoReport();
         report.setTaskId("task-report");
         report.setSiteUrl(URL);
         report.setScore(score);
         report.setPagesAudited(pages);
         report.setBrokenLinks(broken);
+        report.setSkippedPages(skipped);
         report.setErrorCount(errors);
         report.setWarningCount(warnings);
         report.setInfoCount(infos);

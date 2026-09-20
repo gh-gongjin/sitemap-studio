@@ -45,6 +45,32 @@ class SeoAuditServiceTest {
     }
 
     @Test
+    void shouldCountSkippedPagesSeparatelyFromAuditedPages() {
+        // Given
+        service.recordSkipped(TASK, URL + "/private", "noindex");
+        service.recordSkipped(TASK, URL + "/a", "robots-disallow");
+        service.recordSkipped(TASK, URL + "/b", "robots-disallow");
+        service.recordPage(TASK, healthyPage());
+
+        // When
+        SeoAuditService.AuditSummary summary = service.summarize(TASK);
+
+        // Then: 跳过只进计数，不进问题清单，不影响评分
+        assertThat(summary.skippedPages()).isEqualTo(3);
+        assertThat(summary.pagesAudited()).isEqualTo(1);
+        assertThat(summary.issues()).extracting(SeoAuditService.Issue::rule)
+                .doesNotContain("skipped");
+        assertThat(summary.score()).isEqualTo(100);
+    }
+
+    @Test
+    void shouldReturnZeroSkippedWhenNoAuditOrNoSkips() {
+        // Then: 无审计任务与未跳过任何页时都是 0
+        assertThat(service.summarize("unknown-task").skippedPages()).isZero();
+        assertThat(service.summarize(TASK).skippedPages()).isZero();
+    }
+
+    @Test
     void shouldReturnPerfectScoreWhenPageIsHealthy() {
         // Given
         service.recordPage(TASK, healthyPage());

@@ -461,6 +461,9 @@ public class EnhancedSitemapGeneratorService implements SitemapGeneratorService 
         // robots.txt 规则检查
      if (robotsParser != null && !robotsParser.isAllowed(task.url)) {
          log.debug("robots.txt 禁止爬取: {}", task.url);
+         if (seoAuditService != null && taskId != null) {
+             seoAuditService.recordSkipped(taskId, task.url, "robots-disallow");
+         }
          return;
      }
         
@@ -520,6 +523,9 @@ public class EnhancedSitemapGeneratorService implements SitemapGeneratorService 
                if (contentType != null && !contentType.contains("text/html") && 
                    !contentType.contains("application/xhtml") && !contentType.contains("application/xml")) {
                    log.debug("跳过非 HTML 内容类型 {}：{}", contentType, task.url);
+                   if (seoAuditService != null && taskId != null) {
+                       seoAuditService.recordSkipped(taskId, task.url, "non-html");
+                   }
                    return;
                }
                
@@ -546,6 +552,7 @@ public class EnhancedSitemapGeneratorService implements SitemapGeneratorService 
                    if (hasRobotsDirective(doc, "noindex")) {
                        log.debug("跳过 noindex 页面：{}", task.url);
                        if (seoAuditService != null && taskId != null) {
+                           seoAuditService.recordSkipped(taskId, task.url, "noindex");
                            seoAuditService.recordPage(taskId, collectSeoData(doc, normalizeUrl(response.url(), false),
                                    statusCode, fetchElapsed, true));
                        }

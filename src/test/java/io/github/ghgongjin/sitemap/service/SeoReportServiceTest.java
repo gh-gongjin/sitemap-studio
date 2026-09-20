@@ -62,6 +62,21 @@ class SeoReportServiceTest {
     }
 
     @Test
+    void shouldPersistSkippedPagesWhenAuditHasSkips() {
+        // Given
+        auditService.beginAudit(TASK);
+        auditService.recordSkipped(TASK, SITE + "/private", "noindex");
+        auditService.recordSkipped(TASK, SITE + "/a.pdf", "non-html");
+
+        // When
+        SeoReport saved = service.save(TASK, SITE, OWNER);
+
+        // Then
+        assertThat(saved.getSkippedPages()).isEqualTo(2);
+        assertThat(saved.getPagesAudited()).isZero();
+    }
+
+    @Test
     void shouldPersistNullOwnerWhenGuestCrawls() {
         // Given
         auditService.beginAudit(TASK);
