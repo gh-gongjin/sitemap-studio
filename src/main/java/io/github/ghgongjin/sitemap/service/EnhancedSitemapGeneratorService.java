@@ -546,19 +546,19 @@ public class EnhancedSitemapGeneratorService implements SitemapGeneratorService 
                    if (hasRobotsDirective(doc, "noindex")) {
                        log.debug("跳过 noindex 页面：{}", task.url);
                        if (seoAuditService != null && taskId != null) {
-                           seoAuditService.recordPage(taskId, collectSeoData(doc, normalizeUrl(response.url()),
+                           seoAuditService.recordPage(taskId, collectSeoData(doc, normalizeUrl(response.url(), false),
                                    statusCode, fetchElapsed, true));
                        }
                        return;
                    }
 
-                   // 检查 canonical URL
-                   String pageUrl = normalizeUrl(response.url());
+                   // 检查 canonical URL（输出形态保留尾斜杠：这是收录地址，不是去重键）
+                   String pageUrl = normalizeUrl(response.url(), false);
                    Element canonical = doc.selectFirst("link[rel=canonical]");
                    if (canonical != null) {
                        String canonicalHref = canonical.attr("abs:href");
                        if (!canonicalHref.isEmpty()) {
-                           String normalizedCanonical = normalizeUrl(canonicalHref);
+                           String normalizedCanonical = normalizeUrl(canonicalHref, false);
                            if (isEnhancedValidUrl(normalizedCanonical, baseUrl, robotsParser)) {
                                pageUrl = normalizedCanonical;
                            }
@@ -1164,9 +1164,11 @@ public class EnhancedSitemapGeneratorService implements SitemapGeneratorService 
             xml.append("    <loc>").append(escapeXml(url)).append("</loc>\n");
             
             // 优先使用 sitemap.xml 中的 lastmod，否则使用今天日期
+            // sitemapDiscoveredUrls 以去重键（剥斜杠）索引，输出 URL 保留尾斜杠，查询时需归一
             String lastmod = today;
-            if (sitemapDiscoveredUrls != null && sitemapDiscoveredUrls.containsKey(url)) {
-                String sitemapLastmod = sitemapDiscoveredUrls.get(url);
+            String dedupKey = normalizeUrl(url);
+            if (sitemapDiscoveredUrls != null && sitemapDiscoveredUrls.containsKey(dedupKey)) {
+                String sitemapLastmod = sitemapDiscoveredUrls.get(dedupKey);
                 if (sitemapLastmod != null && !sitemapLastmod.isEmpty()) {
                     lastmod = sitemapLastmod.length() > 10 ? sitemapLastmod.substring(0, 10) : sitemapLastmod;
                 }
@@ -1286,9 +1288,17 @@ public class EnhancedSitemapGeneratorService implements SitemapGeneratorService 
     }
     
     /**
-     * URL 规范化：统一格式以便去重
+     * URL 规范化：统一格式以便去重（队列/visited 键，剥除尾斜杠使 /a 与 /a/ 收敛为一个任务）
      */
     private String normalizeUrl(String url) {
+        return normalizeUrl(url, true);
+    }
+
+    /**
+     * URL 规范化。stripTrailingSlash=false 时保留尾斜杠：sitemap 收录必须写重定向/canonical
+     * 解析后的最终形态（MkDocs 等站点 301 到带斜杠形式），剥斜杠会把 301 地址写进地图。
+     */
+    private String normalizeUrl(String url, boolean stripTrailingSlash) {
         try {
             URL parsed = new URL(url);
             
@@ -1304,7 +1314,7 @@ public class EnhancedSitemapGeneratorService implements SitemapGeneratorService 
             }
             
             // 规范化路径：移除尾部斜杠（根路径除外）
-            if (path.length() > 1 && path.endsWith("/")) {
+            if (stripTrailingSlash && path.length() > 1 && path.endsWith("/")) {
                 path = path.substring(0, path.length() - 1);
             }
             if (path.isEmpty()) {
