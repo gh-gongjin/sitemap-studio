@@ -328,7 +328,10 @@ public class SitemapController {
             model.addAttribute("videoCount", entries.videoCount());
             model.addAttribute("newsCount", entries.newsCount());
             model.addAttribute("lastmod", entries.lastmod());
-            model.addAttribute("reportAvailable", seoReportService.hasReport(lookup.taskId()));
+            SeoReport seoReport = seoReportService.findByTaskId(lookup.taskId()).orElse(null);
+            model.addAttribute("reportAvailable", seoReport != null);
+            model.addAttribute("brokenLinks", seoReport == null ? 0 : seoReport.getBrokenLinks());
+            model.addAttribute("skippedPages", seoReport == null ? 0 : seoReport.getSkippedPages());
             return "preview";
             
         } catch (ResponseStatusException e) {

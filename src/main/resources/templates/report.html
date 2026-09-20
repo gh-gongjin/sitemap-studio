@@ -39,6 +39,7 @@
       <div class="meters side">
         <div class="meter"><b th:text="${report.pagesAudited}">0</b><span th:text="#{report.m.pages}">已审核页面</span></div>
         <div class="meter"><b th:text="${report.brokenLinks}">0</b><span th:text="#{report.m.broken}">断链</span></div>
+        <div class="meter"><b th:text="${report.skippedPages}">0</b><span th:text="#{report.m.skipped}">跳过</span></div>
         <div class="meter"><b th:text="${report.errorCount}">0</b><span th:text="#{report.m.errors}">错误</span></div>
         <div class="meter"><b th:text="${report.warningCount}">0</b><span th:text="#{report.m.warnings}">警告</span></div>
         <div class="meter"><b th:text="${report.infoCount}">0</b><span th:text="#{report.m.infos}">提示</span></div>
