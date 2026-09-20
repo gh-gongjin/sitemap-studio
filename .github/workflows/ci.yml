@@ -17,3 +17,22 @@ jobs:
           cache: maven
       - name: Build and test
         run: mvn -B verify
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t sitemap-studio:ci .
+      - name: Smoke test the container
+        run: |
+          docker run -d --name smoke -p 8080:8080 sitemap-studio:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/ -o /dev/null; then
+              echo "container is serving"; docker inspect --format '{{.State.Health.Status}}' smoke; exit 0
+            fi
+            sleep 5
+          done
+          echo "container did not become healthy"
+          docker logs smoke
+          exit 1

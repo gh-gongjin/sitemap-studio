@@ -1,0 +1,14 @@
+target/
+data/
+.git/
+.gitignore
+*.jar
+*.log
+docs/
+.idea/
+*.iml
+start.bat
+README.md
+CONTRIBUTING.md
+SECURITY.md
+LICENSE

@@ -1,0 +1,23 @@
+services:
+  sitemap-studio:
+    build: .
+    image: gh-gongjin/sitemap-studio:1.1.1
+    container_name: sitemap-studio
+    ports:
+      - "8080:8080"
+    volumes:
+      - sitemap_data:/app/data
+    environment:
+      # Optional: Base64-encoded 32-byte key that encrypts stored push credentials.
+      # Leave empty and the app generates /app/data/push.key on first start.
+      SITEMAP_PUSH_KEY: ${SITEMAP_PUSH_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+
+volumes:
+  sitemap_data:
