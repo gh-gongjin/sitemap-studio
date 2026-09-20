@@ -90,6 +90,7 @@ public class NotificationService {
         dispatch(site, NotificationPayload.ofFailed(site, event));
     }
 
+    /** 同步投递：在调用线程上执行，webhook 路径最坏阻塞约 timeout×2 + 重试间隔（含邮件通道则再加 SMTP 超时） */
     public NotifyOutcome test(Long siteId) {
         AutoSite site = siteId == null ? null : siteRepository.findById(siteId).orElse(null);
         if (site == null) {

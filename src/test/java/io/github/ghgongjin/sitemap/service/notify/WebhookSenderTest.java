@@ -19,6 +19,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -187,6 +188,37 @@ class WebhookSenderTest {
             String body = new String(bodyRef.get(), StandardCharsets.UTF_8);
             assertThat(new ObjectMapper().readTree(body).get("type").asText()).isEqualTo("CHANGED");
             assertThat(body).contains("\"added\":3");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void shouldTreatRedirectAsFailureWhenSentViaRealHttpTransport() throws Exception {
+        // Given：本机 HttpServer 对 POST 返回 302 + Location——RestClient 默认状态处理只对 4xx/5xx 抛错，
+        //        3xx 若不加显式判定会被误认为投递成功
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicInteger requests = new AtomicInteger();
+        server.createContext("/hook", exchange -> {
+            requests.incrementAndGet();
+            exchange.getResponseHeaders().set("Location", "http://127.0.0.1/moved");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.start();
+        try {
+            NotifyProperties props = new NotifyProperties();
+            props.setAllowPrivateNetwork(true);
+            CredentialCipher cipher = new CredentialCipher("", tmp.resolve("push.key").toString());
+            WebhookSender sender = new WebhookSender(
+                    new WebhookUrlPolicy(true, host -> new InetAddress[]{loopback()}),
+                    props, cipher, new ObjectMapper(), new WebhookSender.RestClientTransport());
+            AutoSite site = siteWithWebhook(null);
+            site.setNotifyWebhookUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/hook");
+
+            // When & Then：302 判定为失败（与 5xx/超时失败用例断言方式一致），且首发 + 重试共投递 2 次
+            assertThat(sender.send(site, payload())).isFalse();
+            assertThat(requests.get()).isEqualTo(2);
         } finally {
             server.stop(0);
         }

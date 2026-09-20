@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import javax.crypto.Mac;
@@ -137,7 +138,15 @@ public class WebhookSender implements NotifyChannel {
                         }
                     })
                     .body(body)
-                    .retrieve().toBodilessEntity();   // 非 2xx 抛 RestClientResponseException
+                    .retrieve()
+                    // RestClient 默认仅对 4xx/5xx 抛错；3xx（如接收端只回 302）必须显式判为投递失败
+                    .onStatus(status -> !status.is2xxSuccessful(), (request, response) -> {
+                        throw new RestClientResponseException(
+                                "Webhook 响应非 2xx: " + response.getStatusCode(),
+                                response.getStatusCode().value(), response.getStatusText(),
+                                response.getHeaders(), null, null);
+                    })
+                    .toBodilessEntity();
         }
     }
 }
