@@ -7,6 +7,8 @@ import io.github.ghgongjin.sitemap.repository.SeoReportRepository;
 import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.SeoAuditService;
 import io.github.ghgongjin.sitemap.service.UserService;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
 import org.jsoup.Jsoup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -234,6 +237,29 @@ class ReportExportIntegrationTest {
 
         mvc.perform(get("/report/export-test/export").param("format", format).with(user(tester)))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldExportPdfWhenIssuesSpanMultiplePages() throws Exception {
+        // Given: 200 条长 URL 问题必然触发换页——旧库真实报告（81 条）曾在 doc.save 处
+        //        抛 "Cannot read while there is an open stream writer"（换页后新页流未被关闭）
+        List<SeoAuditService.Issue> many = new ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            many.add(new SeoAuditService.Issue("broken-link", SeoAuditService.Severity.ERROR,
+                    "https://example.com/page-" + i + "/a-path-long-enough-to-wrap-lines/", "404"));
+        }
+        saveReport(objectMapper.writeValueAsString(many));
+
+        // When
+        var response = mvc.perform(get("/report/export-test/export")
+                        .param("format", "pdf").param("lang", "zh-CN").with(user(tester)))
+                .andExpect(status().isOk()).andReturn().getResponse();
+
+        // Then: 合法多页 PDF——每个页流都已收尾，save 才能成功
+        assertThat(response.getContentAsByteArray()).startsWith("%PDF".getBytes(StandardCharsets.US_ASCII));
+        try (PDDocument doc = Loader.loadPDF(response.getContentAsByteArray())) {
+            assertThat(doc.getNumberOfPages()).isGreaterThan(1);
+        }
     }
 
     private MockHttpServletResponse download(String language) throws Exception {
