@@ -168,36 +168,36 @@ public class SeoReportService {
 
             PDPage page = new PDPage(PDRectangle.A4);
             doc.addPage(page);
-            PDPageContentStream cs = new PDPageContentStream(doc, page);
+            PdfCanvas canvas = new PdfCanvas(doc, new PDPageContentStream(doc, page));
             float y = PDRectangle.A4.getHeight() - margin;
 
-            cs.beginText();
-            cs.setFont(font, titleSize);
-            cs.newLineAtOffset(margin, y);
-            cs.showText(message("report.title", locale));
-            cs.endText();
+            canvas.cs.beginText();
+            canvas.cs.setFont(font, titleSize);
+            canvas.cs.newLineAtOffset(margin, y);
+            canvas.cs.showText(message("report.title", locale));
+            canvas.cs.endText();
             y -= titleSize * 2.2f;
 
-            cs.beginText();
-            cs.setFont(font, fontSize);
-            cs.newLineAtOffset(margin, y);
-            cs.showText(message("preview.site", locale) + ": " + report.getSiteUrl());
-            cs.endText();
+            canvas.cs.beginText();
+            canvas.cs.setFont(font, fontSize);
+            canvas.cs.newLineAtOffset(margin, y);
+            canvas.cs.showText(message("preview.site", locale) + ": " + report.getSiteUrl());
+            canvas.cs.endText();
             y -= lineHeight;
 
-            cs.beginText();
-            cs.setFont(font, fontSize);
-            cs.newLineAtOffset(margin, y);
-            cs.showText(message("preview.task", locale) + ": " + report.getTaskId());
-            cs.endText();
+            canvas.cs.beginText();
+            canvas.cs.setFont(font, fontSize);
+            canvas.cs.newLineAtOffset(margin, y);
+            canvas.cs.showText(message("preview.task", locale) + ": " + report.getTaskId());
+            canvas.cs.endText();
             y -= lineHeight;
 
-            cs.beginText();
-            cs.setFont(font, fontSize);
-            cs.newLineAtOffset(margin, y);
-            cs.showText(message("report.generated", locale) + ": "
+            canvas.cs.beginText();
+            canvas.cs.setFont(font, fontSize);
+            canvas.cs.newLineAtOffset(margin, y);
+            canvas.cs.showText(message("report.generated", locale) + ": "
                     + report.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-            cs.endText();
+            canvas.cs.endText();
             y -= lineHeight * 1.5f;
 
             String[] metrics = {
@@ -210,29 +210,29 @@ public class SeoReportService {
                     message("report.m.infos", locale) + ": " + report.getInfoCount()
             };
             for (String metric : metrics) {
-                cs.beginText();
-                cs.setFont(font, fontSize);
-                cs.newLineAtOffset(margin, y);
-                cs.showText(metric);
-                cs.endText();
+                canvas.cs.beginText();
+                canvas.cs.setFont(font, fontSize);
+                canvas.cs.newLineAtOffset(margin, y);
+                canvas.cs.showText(metric);
+                canvas.cs.endText();
                 y -= lineHeight;
             }
             y -= lineHeight * 0.5f;
 
             if (report.isTruncated()) {
-                y = writeLine(cs, font, fontSize, margin, y, usableWidth, lineHeight,
-                        message("report.truncated", locale), PDRectangle.A4, doc, page);
+                y = canvas.writeLine(font, fontSize, margin, y, usableWidth, lineHeight,
+                        message("report.truncated", locale), PDRectangle.A4);
             }
 
             y -= lineHeight * 0.5f;
-            cs.beginText();
-            cs.setFont(font, headerSize);
-            cs.newLineAtOffset(margin, y);
-            cs.showText(message("report.th.severity", locale) + "  |  "
+            canvas.cs.beginText();
+            canvas.cs.setFont(font, headerSize);
+            canvas.cs.newLineAtOffset(margin, y);
+            canvas.cs.showText(message("report.th.severity", locale) + "  |  "
                     + message("report.th.rule", locale) + "  |  "
                     + message("report.th.url", locale) + "  |  "
                     + message("report.th.detail", locale));
-            cs.endText();
+            canvas.cs.endText();
             y -= lineHeight * 1.2f;
 
             for (SeoAuditService.Issue issue : issues) {
@@ -243,10 +243,10 @@ public class SeoReportService {
                     detail += " ms";
                 }
                 String line = severity + "  |  " + rule + "  |  " + nullSafe(issue.url()) + "  |  " + nullSafe(detail);
-                y = writeLine(cs, font, fontSize, margin, y, usableWidth, lineHeight,
-                        line, PDRectangle.A4, doc, page);
+                y = canvas.writeLine(font, fontSize, margin, y, usableWidth, lineHeight,
+                        line, PDRectangle.A4);
             }
-            cs.close();
+            canvas.cs.close();
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             doc.save(out);
@@ -254,30 +254,46 @@ public class SeoReportService {
         }
     }
 
-    private float writeLine(PDPageContentStream cs, PDType0Font font, float fontSize,
-                            float margin, float y, float usableWidth, float lineHeight,
-                            String text, PDRectangle pageSize, PDDocument doc, PDPage currentPage) throws IOException {
-        String wrapped = wrapText(font, fontSize, text, usableWidth);
-        String[] lines = wrapped.split("\n", -1);
-        for (String line : lines) {
-            if (y < margin + lineHeight) {
-                cs.close();
-                PDPage newPage = new PDPage(PDRectangle.A4);
-                doc.addPage(newPage);
-                cs = new PDPageContentStream(doc, newPage);
-                y = pageSize.getHeight() - margin;
-            }
-            cs.beginText();
-            cs.setFont(font, fontSize);
-            cs.newLineAtOffset(margin, y);
-            cs.showText(line);
-            cs.endText();
-            y -= lineHeight;
+    /**
+     * PDF 换页持有者：新页必须关旧流并换新引用在同一对象上完成，
+     * 若调用方各自持有旧 stream，末页流泄漏未关闭，doc.save 抛
+     * "Cannot read while there is an open stream writer"。
+     */
+    private static final class PdfCanvas {
+
+        private final PDDocument doc;
+        private PDPageContentStream cs;
+
+        private PdfCanvas(PDDocument doc, PDPageContentStream cs) {
+            this.doc = doc;
+            this.cs = cs;
         }
-        return y;
+
+        private float writeLine(PDType0Font font, float fontSize, float margin, float y,
+                                float usableWidth, float lineHeight, String text,
+                                PDRectangle pageSize) throws IOException {
+            String wrapped = wrapText(font, fontSize, text, usableWidth);
+            String[] lines = wrapped.split("\n", -1);
+            for (String line : lines) {
+                if (y < margin + lineHeight) {
+                    cs.close();
+                    PDPage newPage = new PDPage(pageSize);
+                    doc.addPage(newPage);
+                    cs = new PDPageContentStream(doc, newPage);
+                    y = pageSize.getHeight() - margin;
+                }
+                cs.beginText();
+                cs.setFont(font, fontSize);
+                cs.newLineAtOffset(margin, y);
+                cs.showText(line);
+                cs.endText();
+                y -= lineHeight;
+            }
+            return y;
+        }
     }
 
-    private String wrapText(PDType0Font font, float fontSize, String text, float maxWidth) {
+    private static String wrapText(PDType0Font font, float fontSize, String text, float maxWidth) {
         if (text == null || text.isEmpty()) return "";
         StringBuilder result = new StringBuilder();
         StringBuilder currentLine = new StringBuilder();
