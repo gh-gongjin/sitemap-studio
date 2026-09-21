@@ -4,13 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.ClientHttpRequestFactory;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -22,10 +18,6 @@ import java.util.Base64;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -74,22 +66,10 @@ class GoogleSitemapClientTest {
     @Test
     void shouldConfigureTenSecondTimeoutRequestFactoryWhenConstructedFromBuilder() {
         // Given: spec §5.3 承诺连接/读取各 10s——构造时必须把带超时的请求工厂装进 builder
-        RestClient.Builder builder = mock(RestClient.Builder.class);
-        when(builder.requestFactory(any())).thenReturn(builder);
-        when(builder.build()).thenReturn(RestClient.builder().build());
-
-        // When
-        new GoogleSitemapClient(builder, GoogleSitemapClient.DEFAULT_BASE_URL,
-                new ObjectMapper(), 10_000);
-
-        // Then
-        ArgumentCaptor<ClientHttpRequestFactory> captor =
-                ArgumentCaptor.forClass(ClientHttpRequestFactory.class);
-        verify(builder).requestFactory(captor.capture());
-        assertThat(captor.getValue()).isInstanceOf(SimpleClientHttpRequestFactory.class);
-        SimpleClientHttpRequestFactory factory = (SimpleClientHttpRequestFactory) captor.getValue();
-        assertThat(ReflectionTestUtils.getField(factory, "connectTimeout")).isEqualTo(10_000);
-        assertThat(ReflectionTestUtils.getField(factory, "readTimeout")).isEqualTo(10_000);
+        // （装配断言与百度客户端共用 SubmissionClientTestSupport，一处契约一处验法）
+        SubmissionClientTestSupport.assertBuilderUsesTimeoutFactory(10_000,
+                builder -> new GoogleSitemapClient(builder, GoogleSitemapClient.DEFAULT_BASE_URL,
+                        new ObjectMapper(), 10_000));
     }
 
     @Test
