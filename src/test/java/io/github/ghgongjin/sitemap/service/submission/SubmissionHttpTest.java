@@ -55,4 +55,17 @@ class SubmissionHttpTest {
         Method method = SubmissionHttp.class.getDeclaredMethod("timeoutRequestFactory", int.class);
         assertThat(Modifier.isStatic(method.getModifiers())).isTrue();
     }
+
+    @Test
+    void shouldEncodeSpaceAsPercent20WhenPercentEncoding() {
+        assertThat(SubmissionHttp.percentEncode("https://example.org/a b"))
+                .isEqualTo("https%3A%2F%2Fexample.org%2Fa%20b");
+    }
+
+    @Test
+    void shouldNotExposePercentEncodeOnBaiduClientAnymore() {
+        // 跨类静态依赖红线：GoogleSitemapClient 曾借 BaiduPushClient.percentEncode——已迁包内共享
+        assertThatThrownBy(() -> BaiduPushClient.class.getDeclaredMethod("percentEncode", String.class))
+                .isInstanceOf(NoSuchMethodException.class);
+    }
 }

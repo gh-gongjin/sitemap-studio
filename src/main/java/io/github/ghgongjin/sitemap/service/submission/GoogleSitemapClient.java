@@ -59,8 +59,8 @@ public class GoogleSitemapClient {
         String accessToken = exchangeToken(account, buildJwt(account, Instant.now().getEpochSecond()));
         log.info("GSC sitemap 提交：property={}，sitemap={}", siteUrl, sitemapUrl);
         String uri = baseUrl + "/webmasters/v3/sites/"
-                + BaiduPushClient.percentEncode(siteUrl) + "/sitemaps/"
-                + BaiduPushClient.percentEncode(sitemapUrl);
+                + SubmissionHttp.percentEncode(siteUrl) + "/sitemaps/"
+                + SubmissionHttp.percentEncode(sitemapUrl);
         try {
             restClient.put()
                     .uri(URI.create(uri))
@@ -121,7 +121,7 @@ public class GoogleSitemapClient {
             body = restClient.post()
                     .uri(URI.create(account.tokenUri()))
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body("grant_type=" + BaiduPushClient.percentEncode(GRANT_TYPE)
+                    .body("grant_type=" + SubmissionHttp.percentEncode(GRANT_TYPE)
                             + "&assertion=" + jwt)
                     .retrieve()
                     .body(String.class);

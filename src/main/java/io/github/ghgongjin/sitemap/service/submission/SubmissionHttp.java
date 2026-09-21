@@ -2,6 +2,8 @@ package io.github.ghgongjin.sitemap.service.submission;
 
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 /**
@@ -23,5 +25,10 @@ final class SubmissionHttp {
         factory.setConnectTimeout(Duration.ofMillis(timeoutMs));
         factory.setReadTimeout(Duration.ofMillis(timeoutMs));
         return factory;
+    }
+
+    /** 查询串/路径段百分号编码：空格按 RFC 3986 编为 %20 而非 '+' */
+    static String percentEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }
 }

@@ -14,7 +14,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.net.URI;
-import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -60,7 +59,8 @@ public class BaiduPushClient {
 
     public BaiduPushResponse push(String site, String token, List<String> urls)
             throws SubmissionClientException {
-        String uri = endpoint + "?site=" + percentEncode(site) + "&token=" + percentEncode(token);
+        String uri = endpoint + "?site=" + SubmissionHttp.percentEncode(site)
+                + "&token=" + SubmissionHttp.percentEncode(token);
         log.info("百度主动推送：site={}，{} 个 URL", site, urls.size());
         String body;
         try {
@@ -167,7 +167,4 @@ public class BaiduPushClient {
         return trimmed.length() <= 160 ? trimmed : trimmed.substring(0, 160) + "…";
     }
 
-    static String percentEncode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
-    }
 }

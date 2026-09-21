@@ -154,7 +154,8 @@ class GoogleSitemapClientTest {
     }
 
     @Test
-    void shouldThrowNotASiteUserWhenApiReturns403() throws Exception {        server.expect(requestTo(TOKEN_URL))
+    void shouldThrowNotASiteUserWhenApiReturns403() throws Exception {
+        server.expect(requestTo(TOKEN_URL))
                 .andRespond(withSuccess("{\"access_token\":\"ya29.tok\"}", MediaType.APPLICATION_JSON));
         server.expect(requestTo(SUBMIT_URL)).andRespond(withStatus(HttpStatus.FORBIDDEN));
 

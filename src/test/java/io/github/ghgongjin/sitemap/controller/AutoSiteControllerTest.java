@@ -743,7 +743,8 @@ class AutoSiteControllerTest {
     }
 
     @Test
-    void shouldRenderSubmissionConfirmPromptInEnglishWhenEnglishLocale() throws Exception {        // Given
+    void shouldRenderSubmissionConfirmPromptInEnglishWhenEnglishLocale() throws Exception {
+        // Given
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
 
