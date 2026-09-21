@@ -121,4 +121,30 @@ class BaiduPushClientTest {
                 .satisfies(e -> assertThat(((SubmissionClientException) e).errorCode())
                         .isEqualTo(SubmissionErrorCode.BAIDU_REJECTED));
     }
+
+    @Test
+    void shouldDecodeUtf8ChineseMessageWhenContentTypeJsonWithoutCharset() {
+        server.expect(requestTo(URI_WITH_QUERY)).andRespond(withSuccess(
+                "{\"error\":9,\"message\":\"站点被禁止推送\"}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.push("https://example.com", "t0ken_ABC-123",
+                List.of("https://example.com/a")))
+                .isInstanceOf(SubmissionClientException.class)
+                .satisfies(e -> assertThat(((SubmissionClientException) e).errorCode())
+                        .isEqualTo(SubmissionErrorCode.BAIDU_REJECTED))
+                .hasMessageContaining("站点被禁止推送");
+    }
+
+    @Test
+    void shouldDecodeUtf8ChineseMessageWhenServerErrorBodyOnHttpFailure() {
+        server.expect(requestTo(URI_WITH_QUERY)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("{\"error\":9,\"message\":\"内部错误\"}").contentType(MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.push("https://example.com", "t0ken_ABC-123",
+                List.of("https://example.com/a")))
+                .isInstanceOf(SubmissionClientException.class)
+                .satisfies(e -> assertThat(((SubmissionClientException) e).errorCode())
+                        .isEqualTo(SubmissionErrorCode.BAIDU_REJECTED))
+                .hasMessageContaining("内部错误");
+    }
 }

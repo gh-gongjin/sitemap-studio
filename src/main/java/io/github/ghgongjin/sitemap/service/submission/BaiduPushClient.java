@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -12,6 +14,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.net.URI;
 import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -52,12 +55,15 @@ public class BaiduPushClient {
         log.info("百度主动推送：site={}，{} 个 URL", site, urls.size());
         String body;
         try {
-            body = restClient.post()
+            // 显式取字节后自行解码：不依赖注入 RestClient.Builder 的 String 转换器默认字符集
+            // （StringHttpMessageConverter 无参构造的 DEFAULT_CHARSET 是 ISO-8859-1）
+            ResponseEntity<byte[]> response = restClient.post()
                     .uri(URI.create(uri))
                     .contentType(MediaType.TEXT_PLAIN)
                     .body(String.join("\n", urls))
                     .retrieve()
-                    .body(String.class);
+                    .toEntity(byte[].class);
+            body = decode(response.getHeaders().getContentType(), response.getBody());
         } catch (RestClientResponseException e) {
             throw translateHttpFailure(e);
         } catch (RestClientException e) {
@@ -68,12 +74,24 @@ public class BaiduPushClient {
     }
 
     private SubmissionClientException translateHttpFailure(RestClientResponseException e) {
-        SubmissionClientException mapped = tryErrorNode(e.getResponseBodyAsString());
+        SubmissionClientException mapped = tryErrorNode(
+                decode(e.getResponseHeaders() == null ? null : e.getResponseHeaders().getContentType(),
+                        e.getResponseBodyAsByteArray()));
         if (mapped != null) {
             return mapped;
         }
         return new SubmissionClientException(SubmissionErrorCode.BAIDU_TRANSPORT,
                 "百度推送失败（HTTP " + e.getStatusCode().value() + "）", e);
+    }
+
+    /** 响应体字节 → 字符串：Content-Type 显式声明 charset 时遵从声明，否则按 UTF-8 解码（百度实际编码） */
+    private static String decode(@Nullable MediaType contentType, @Nullable byte[] bytes) {
+        if (bytes == null) {
+            return null;
+        }
+        Charset charset = contentType != null && contentType.getCharset() != null
+                ? contentType.getCharset() : StandardCharsets.UTF_8;
+        return new String(bytes, charset);
     }
 
     private BaiduPushResponse parseResponse(String body) throws SubmissionClientException {
