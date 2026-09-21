@@ -4,6 +4,7 @@ import io.github.ghgongjin.sitemap.config.NotifyProperties;
 import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.entity.PushLog;
+import io.github.ghgongjin.sitemap.entity.SubmissionLog;
 import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
@@ -848,6 +849,30 @@ class AutoSiteControllerTest {
     }
 
     @Test
+    void shouldRenderSubmissionLogRowsWhenLogsExist() throws Exception {
+        // Given：非空提交日志——th:each 行渲染此前从未被运行时求值（T8 移交补证）
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.versions(1L)).thenReturn(List.of());
+        SubmissionLog baiduOk = submissionLog("BAIDU", "SUCCESS", "成功推送12条", 88L);
+        SubmissionLog gscBad = submissionLog("GSC", "FAILED", null, 1200L);
+        when(pushConfigService.submissionLogs(1L)).thenReturn(List.of(baiduOk, gscBad));
+
+        // When
+        Document page = render(get("/auto/1"));
+
+        // Then：两行日志，通道/状态/详情按列渲染；详情为空回显全角破折号
+        assertThat(page.select("#submissionLogTable tbody tr")).hasSize(2);
+        Element okRow = page.select("#submissionLogTable tbody tr").get(0);
+        assertThat(okRow.select("td").eachText())
+                .containsExactly("BAIDU", "SUCCESS", "成功推送12条", "2026-09-18 10:00");
+        Element badRow = page.select("#submissionLogTable tbody tr").get(1);
+        assertThat(badRow.select("td").eachText())
+                .containsExactly("GSC", "FAILED", "—", "2026-09-18 10:00");
+        // 有日志时提交区块空态文案不得出现
+        assertThat(page.select("#submissionPanel .push-empty")).isEmpty();
+    }
+
+    @Test
     void shouldRenderPushFlashWhenFollowingRedirect() throws Exception {
         // Given
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
@@ -937,14 +962,25 @@ class AutoSiteControllerTest {
         return version;
     }
 
-    private PushLog pushLog(String status, String errorCode, String detail, String indexNowStatus, long durationMs) {
-        PushLog log = new PushLog();
+    private PushLog pushLog(String status, String errorCode, String detail, String indexNowStatus, long durationMs) {        PushLog log = new PushLog();
         log.setSiteId(1L);
         log.setProtocol("SFTP");
         log.setStatus(status);
         log.setErrorCode(errorCode);
         log.setDetail(detail);
         log.setIndexNowStatus(indexNowStatus);
+        log.setDurationMs(durationMs);
+        log.setCreatedAt(LocalDateTime.of(2026, 9, 18, 10, 0));
+        return log;
+    }
+
+    private SubmissionLog submissionLog(String channel, String status, String detail, long durationMs) {
+        SubmissionLog log = new SubmissionLog();
+        log.setSiteId(1L);
+        log.setVersionNumber(3);
+        log.setChannel(channel);
+        log.setStatus(status);
+        log.setDetail(detail);
         log.setDurationMs(durationMs);
         log.setCreatedAt(LocalDateTime.of(2026, 9, 18, 10, 0));
         return log;
