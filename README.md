@@ -50,13 +50,41 @@ engines — from a single Spring Boot application.
 - **Auto-update & push** — register a site, schedule re-crawls, and publish results via SFTP / FTP / FTPS, plus Bing/Yandex/IndexNow notification through IndexNow.
 - **Account isolation** — Spring Security form login; users only ever see (and receive 404, not 403, for) their own reports and sites.
 - **Bilingual UI** — full Chinese / English i18n, dark-first responsive design.
-- **Zero external services** — embedded H2 file database, runs as a single jar.
+- **Zero external services** — embedded H2 file database, runs as a single jar or one Docker container.
 
 ## Tech Stack
 
 Java 21 · Spring Boot 3.5 · Thymeleaf · Spring Security · Jsoup · MyBatis-Plus · H2 · Maven
 
 ## Quick Start
+
+### Docker (recommended)
+
+```sh
+git clone https://github.com/gh-gongjin/sitemap-studio.git
+cd sitemap-studio
+docker compose up -d --build
+```
+
+Or without Compose:
+
+```sh
+docker build -t sitemap-studio .
+docker run -d --name sitemap-studio -p 8080:8080 \
+  -v sitemap-studio-data:/app/data sitemap-studio
+```
+
+Open **http://localhost:8080**. Reports, scheduled sites and the encrypted push
+key live in the `sitemap-studio-data` volume, so they survive rebuilds and
+`docker rm`. Stop with `docker compose down` (add `-v` to wipe the data too).
+Optional: set `SITEMAP_PUSH_KEY` (Base64-encoded 32 bytes) in the environment to
+fix the push-credential encryption key instead of auto-generating one.
+
+> The image runs the crawler, reports and push features. Opt-in JS rendering
+> (`sitemap.generator.renderer.enabled=true`) needs Playwright browsers that are
+> not bundled in the image; use the jar below on a machine that already has them.
+
+### From source
 
 Requirements: JDK 21+ and Maven 3.9+ (`java -version`, `mvn --version`).
 
@@ -117,13 +145,40 @@ Sitemap Studio 是一款免费、可自托管的站点地图生成器，提供�
 - **自动更新与推送**：登记站点后可定时重新爬取，并通过 SFTP / FTP / FTPS 发布结果，支持 IndexNow 通知 Bing / Yandex 等搜索引擎。
 - **账号隔离**：Spring Security 表单登录；用户只能看到本人报告与站点（越权访问返回 404 而非 403）。
 - **双语界面**：完整的中文 / 英文国际化，深色优先响应式设计。
-- **零外部依赖**：内嵌 H2 文件数据库，单一 jar 即可运行。
+- **零外部依赖**：内嵌 H2 文件数据库，单一 jar 或一个 Docker 容器即可运行。
 
 ## 技术栈
 
 Java 21 · Spring Boot 3.5 · Thymeleaf · Spring Security · Jsoup · MyBatis-Plus · H2 · Maven
 
 ## 快速开始
+
+### Docker 部署（推荐）
+
+```sh
+git clone https://github.com/gh-gongjin/sitemap-studio.git
+cd sitemap-studio
+docker compose up -d --build
+```
+
+不用 Compose 也可以：
+
+```sh
+docker build -t sitemap-studio .
+docker run -d --name sitemap-studio -p 8080:8080 \
+  -v sitemap-studio-data:/app/data sitemap-studio
+```
+
+启动后访问 **http://localhost:8080**。报告、定时更新站点与推送加密密钥都存在
+`sitemap-studio-data` 数据卷里，重建或删除容器都不会丢数据。停止用
+`docker compose down`（加 `-v` 会连数据一起清除）。可选：通过环境变量
+`SITEMAP_PUSH_KEY`（Base64 编码的 32 字节）固定推送凭据加密密钥，否则首次启动自动生成。
+
+> 镜像内包含爬虫、报告与推送等全部能力；可选的 JS 页面渲染
+> （`sitemap.generator.renderer.enabled=true`）依赖镜像未打包的 Playwright 浏览器，
+> 需要该能力时请使用下面 jar 方式在已装浏览器的机器上运行。
+
+### 源码运行
 
 环境要求：JDK 21+ 与 Maven 3.9+（可用 `java -version`、`mvn --version` 核对）。
 

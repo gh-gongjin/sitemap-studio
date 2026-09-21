@@ -8,6 +8,8 @@ Thanks for your interest in contributing! This project follows **GitHub Flow**.
 
 - JDK 21+ and Maven 3.9+
 - `mvn verify` must pass locally before opening a PR (400+ tests, no skips allowed for new code paths)
+- `docker compose up -d --build` works as an alternative runtime; the Dockerfile is
+  built with BuildKit and kept in sync with the Maven build (Java 21, `/app/data` volume)
 
 ## Branches & Pull Requests
 
@@ -41,6 +43,8 @@ Releases are cut by maintainers: version bump PR (`chore: release vX.Y.Z`) → m
 
 - JDK 21+ 与 Maven 3.9+
 - 提 PR 前本地 `mvn verify` 必须全绿（400+ 用例；新增代码路径不允许被跳过）
+- `docker compose up -d --build` 可作为替代运行方式；Dockerfile 使用 BuildKit 构建，
+  需与 Maven 构建保持一致（Java 21、`/app/data` 数据卷）
 
 ## 分支与 Pull Request
 
