@@ -247,6 +247,114 @@
     <p class="push-empty" th:if="${#lists.isEmpty(pushLogs)}" th:text="#{auto.push.empty}">还没有推送记录，先保存设置，再点“立即推送”试一次。</p>
   </div>
 
+  <div class="list-panel push-panel" id="submissionPanel"
+       th:with="sBaidu=${submission != null && submission.baiduEnabled()},
+                sSite=${submission != null && submission.baiduSite != null ? submission.baiduSite : ''},
+                sHasTok=${submission != null && submission.hasBaiduToken},
+                sGsc=${submission != null && submission.gscEnabled},
+                sProp=${submission != null && submission.gscSiteUrl != null ? submission.gscSiteUrl : ''},
+                sSmUri=${submission != null && submission.gscSitemapUrl != null ? submission.gscSitemapUrl : ''},
+                sHasJson=${submission != null && submission.hasGscJson},
+                sEmail=${submission != null ? submission.gscClientEmail : null}">
+    <div class="list-head">
+      <h3 th:text="#{auto.submission.title}">搜索引擎提交</h3>
+      <span class="state" th:classappend="${sBaidu or sGsc} ? 'state-success' : 'state-pending'"
+            th:text="${sBaidu or sGsc} ? #{auto.submission.on} : #{auto.submission.off}">未启用提交</span>
+    </div>
+    <form class="push-form" id="submissionForm" method="post" novalidate
+          th:action="@{/auto/{id}/submission/settings(id=${site.id})}">
+      <div class="push-switches">
+        <label class="switch-row">
+          <span>
+            <b th:text="#{auto.submission.baidu.enabled}">启用百度提交</b>
+            <i th:text="#{auto.submission.baidu.enabled.d}">推送成功后提交新增与修改的 URL</i>
+          </span>
+          <input type="checkbox" name="baiduEnabled" th:checked="${sBaidu}">
+          <span class="sw"></span>
+        </label>
+      </div>
+      <div class="push-grid js-baidu-fields" th:attr="hidden=${!sBaidu} ? 'hidden' : null">
+        <div class="field">
+          <label class="field-label" for="submissionBaiduSite" th:text="#{auto.submission.baidu.site}">百度站点</label>
+          <input id="submissionBaiduSite" type="text" name="baiduSite" autocomplete="off"
+                 th:value="${sSite}" th:placeholder="#{auto.submission.baidu.site.ph}"
+                 placeholder="https://example.com">
+        </div>
+        <div class="field">
+          <label class="field-label" for="submissionBaiduToken" th:text="#{auto.submission.baidu.token}">推送 token</label>
+          <input id="submissionBaiduToken" type="password" name="baiduToken" autocomplete="new-password"
+                 th:placeholder="${sHasTok} ? #{auto.submission.baidu.token.keep} : #{auto.submission.baidu.token.hint}"
+                 placeholder="百度搜索资源平台普通收录处获取">
+        </div>
+      </div>
+      <div class="push-switches">
+        <label class="switch-row">
+          <span>
+            <b th:text="#{auto.submission.gsc.enabled}">启用 GSC 提交</b>
+            <i th:text="#{auto.submission.gsc.enabled.d}">推送成功后向 Google 提交 sitemap 地址</i>
+          </span>
+          <input type="checkbox" name="gscEnabled" th:checked="${sGsc}">
+          <span class="sw"></span>
+        </label>
+      </div>
+      <div class="push-grid js-gsc-fields" th:attr="hidden=${!sGsc} ? 'hidden' : null">
+        <div class="field">
+          <label class="field-label" for="submissionGscSiteUrl" th:text="#{auto.submission.gsc.siteUrl}">站点属性</label>
+          <input id="submissionGscSiteUrl" type="text" name="gscSiteUrl" autocomplete="off"
+                 th:value="${sProp}" th:placeholder="#{auto.submission.gsc.siteUrl.ph}"
+                 placeholder="sc-domain:example.com 或 https://example.com/">
+        </div>
+        <div class="field">
+          <label class="field-label" for="submissionGscSitemapUrl" th:text="#{auto.submission.gsc.sitemapUrl}">sitemap 公开 URL</label>
+          <input id="submissionGscSitemapUrl" type="text" name="gscSitemapUrl" autocomplete="off"
+                 th:value="${sSmUri}" th:placeholder="#{auto.submission.gsc.sitemapUrl.ph}"
+                 placeholder="https://example.com/sitemap.xml">
+        </div>
+        <div class="field">
+          <label class="field-label" for="submissionGscJson" th:text="#{auto.submission.gsc.json}">服务账号 JSON</label>
+          <textarea id="submissionGscJson" name="gscServiceAccountJson" rows="4" autocomplete="off"
+                    th:placeholder="${sHasJson} ? #{auto.submission.gsc.json.keep} : #{auto.submission.gsc.json.hint}"
+                    placeholder="粘贴 Google Cloud 下载的服务账号 JSON"></textarea>
+        </div>
+        <p class="push-note" th:if="${sEmail != null}">
+          <b th:text="#{auto.submission.gsc.clientEmail}">服务账号</b>
+          <code th:text="${sEmail}">sa@proj.iam.gserviceaccount.com</code>
+          <span th:text="#{auto.submission.gsc.clientEmail.hint}">需已加入 GSC 站点「用户和权限」</span>
+        </p>
+      </div>
+      <div class="actions push-actions">
+        <button class="btn primary" type="submit" th:text="#{auto.submission.save}">保存提交设置</button>
+      </div>
+      <p class="note" th:text="#{auto.submission.hint}">更新推送成功后自动提交；手动提交只针对最新版本。</p>
+    </form>
+    <div class="push-actions outside">
+      <div class="actions">
+        <form id="submissionRunForm" method="post" th:action="@{/auto/{id}/submission/run(id=${site.id})}">
+          <button class="btn" type="submit" th:text="#{auto.submission.run}">立即提交</button>
+        </form>
+      </div>
+    </div>
+    <table class="url-table" id="submissionLogTable" th:if="${!#lists.isEmpty(submissionLogs)}">
+      <thead><tr>
+        <th th:text="#{auto.submission.log.channel}">通道</th>
+        <th th:text="#{auto.submission.log.status}">状态</th>
+        <th th:text="#{auto.submission.log.detail}">详情</th>
+        <th th:text="#{auto.submission.log.time}">时间</th>
+      </tr></thead>
+      <tbody>
+        <tr th:each="log : ${submissionLogs}">
+          <td class="lm mono" th:text="${log.channel}">BAIDU</td>
+          <td class="lm" th:text="${log.status}">SUCCESS</td>
+          <td class="lm" th:text="${log.detail != null ? log.detail : '—'}"></td>
+          <td class="lm" th:text="${log.createdAt != null ? #temporals.format(log.createdAt, 'yyyy-MM-dd HH:mm') : '—'}"></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="push-empty" th:if="${#lists.isEmpty(submissionLogs)}" th:text="#{auto.submission.empty}">
+      还没有提交记录。
+    </p>
+  </div>
+
   <div class="list-panel" th:if="${notify != null}">
     <div class="list-head">
       <h3 th:text="#{auto.notify.title}">变更告警</h3>
@@ -535,6 +643,30 @@
       });
     });
   }
+})();
+</script>
+<script th:inline="javascript">
+(function () {
+  // 提交区块：开关切换时显隐对应的凭据字段组（与 js-indexnow-key 监听器同款模式）
+  var panel = document.getElementById("submissionPanel");
+  if (!panel) return;
+  var baiduToggle = panel.querySelector("input[name=baiduEnabled]");
+  var baiduFields = panel.querySelector(".js-baidu-fields");
+  var gscToggle = panel.querySelector("input[name=gscEnabled]");
+  var gscFields = panel.querySelector(".js-gsc-fields");
+
+  function syncBaidu() {
+    baiduFields.hidden = !baiduToggle.checked;
+  }
+
+  function syncGsc() {
+    gscFields.hidden = !gscToggle.checked;
+  }
+
+  baiduToggle.addEventListener("change", syncBaidu);
+  gscToggle.addEventListener("change", syncGsc);
+  syncBaidu();
+  syncGsc();
 })();
 </script>
 <script th:inline="javascript">

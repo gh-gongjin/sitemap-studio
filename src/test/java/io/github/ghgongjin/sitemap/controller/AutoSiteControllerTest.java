@@ -689,6 +689,28 @@ class AutoSiteControllerTest {
     }
 
     @Test
+    void shouldRenderSubmissionPanelWhenDetailLoaded() throws Exception {
+        // Given：照本类既有 detail 渲染测试的桩（owned site + versions），补 submission 视图与空日志
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.versions(1L)).thenReturn(List.of());
+        when(pushConfigService.submissionView(1L)).thenReturn(Optional.of(new SubmissionView(
+                true, "https://example.com", true, false, "", "", false, null)));
+        when(pushConfigService.submissionLogs(1L)).thenReturn(List.of());
+        MvcResult result = mvc.perform(get("/auto/1"))
+                .andExpect(status().isOk())
+                .andReturn();
+        Document page = Jsoup.parse(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        // Then：提交区块锚点齐备
+        assertThat(page.select("form#submissionForm")).hasSize(1);
+        assertThat(page.select("form#submissionRunForm")).hasSize(1);
+        assertThat(page.getElementById("submissionBaiduSite")).isNotNull();
+        assertThat(page.select("textarea[name=gscServiceAccountJson]")).hasSize(1);
+        // 凭据永不回显：token/JSON 明文不出现在渲染 HTML
+        assertThat(page.toString()).doesNotContain("v1:");
+    }
+
+    @Test
     void shouldRenderPushDefaultsWhenNoConfigSaved() throws Exception {
         // Given
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
@@ -821,7 +843,8 @@ class AutoSiteControllerTest {
         assertThat(badRow.selectFirst(".ld-state").hasClass("state-failed")).isTrue();
         assertThat(badRow.selectFirst(".ld-version").text()).isEqualTo("—");
         assertThat(badRow.selectFirst(".ld-index").text()).isEqualTo("—");
-        assertThat(page.select(".push-empty")).isEmpty();
+        // push 区块无空态（提交区块也带 .push-empty，故用 pushForm 兄弟选择器限定作用域）
+        assertThat(page.select("form#pushForm ~ .push-empty")).isEmpty();
     }
 
     @Test
