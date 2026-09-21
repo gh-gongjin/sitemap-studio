@@ -1,7 +1,7 @@
 services:
   sitemap-studio:
     build: .
-    image: gh-gongjin/sitemap-studio:1.1.1
+    image: sitemap-studio:1.1.2
     container_name: sitemap-studio
     ports:
       - "8080:8080"
