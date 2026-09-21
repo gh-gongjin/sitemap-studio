@@ -289,7 +289,7 @@ public class PushConfigService {
         URI uri = parseHttpUri(site, "百度站点");
         if (uri.getPort() != -1 || uri.getQuery() != null || uri.getFragment() != null
                 || (uri.getPath() != null && !uri.getPath().isBlank() && !uri.getPath().equals("/"))) {
-            throw new IllegalArgumentException("百度站点必须是 https://example.com 形式（不含端口与路径）");
+            throw new IllegalArgumentException("百度站点必须是 http(s)://example.com 形式（不含端口与路径）");
         }
         return uri.getScheme().toLowerCase(Locale.ROOT) + "://" + uri.getHost().toLowerCase(Locale.ROOT);
     }

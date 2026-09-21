@@ -3,7 +3,6 @@ package io.github.ghgongjin.sitemap.service.submission;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.entity.PushConfig;
 import io.github.ghgongjin.sitemap.entity.SubmissionLog;
-import io.github.ghgongjin.sitemap.repository.AutoSiteVersionRepository;
 import io.github.ghgongjin.sitemap.repository.PushConfigRepository;
 import io.github.ghgongjin.sitemap.repository.SubmissionLogRepository;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;

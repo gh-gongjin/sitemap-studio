@@ -610,7 +610,7 @@ class AutoSiteControllerTest {
     void shouldFlashRawErrorWhenSubmissionValidationFails() throws Exception {
         // Given: 非 message key 的校验原始文本经 flashError 原样透出
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
-        doThrow(new IllegalArgumentException("百度站点必须是 https://example.com 形式（不含端口与路径）"))
+        doThrow(new IllegalArgumentException("百度站点必须是 http(s)://example.com 形式（不含端口与路径）"))
                 .when(pushConfigService).saveSubmission(anyLong(), any(SubmissionSettings.class));
 
         // When & Then
@@ -618,7 +618,7 @@ class AutoSiteControllerTest {
                         .param("baiduEnabled", "true"))
                 .andExpect(redirectedUrl("/auto/1"))
                 .andExpect(flash().attribute("flashError",
-                        "百度站点必须是 https://example.com 形式（不含端口与路径）"));
+                        "百度站点必须是 http(s)://example.com 形式（不含端口与路径）"));
     }
 
     @Test
@@ -962,7 +962,8 @@ class AutoSiteControllerTest {
         return version;
     }
 
-    private PushLog pushLog(String status, String errorCode, String detail, String indexNowStatus, long durationMs) {        PushLog log = new PushLog();
+    private PushLog pushLog(String status, String errorCode, String detail, String indexNowStatus, long durationMs) {
+        PushLog log = new PushLog();
         log.setSiteId(1L);
         log.setProtocol("SFTP");
         log.setStatus(status);

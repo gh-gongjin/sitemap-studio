@@ -3,9 +3,11 @@ package io.github.ghgongjin.sitemap.service.submission;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -16,6 +18,7 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -37,13 +40,28 @@ public class BaiduPushClient {
     private final String endpoint;
     private final ObjectMapper mapper;
 
+    @Autowired
     public BaiduPushClient(RestClient.Builder builder,
                            @Value("${sitemap.submission.baidu-endpoint:" + DEFAULT_ENDPOINT + "}")
                            String endpoint,
-                           ObjectMapper mapper) {
-        this.restClient = builder.build();
+                           ObjectMapper mapper,
+                           @Value("${sitemap.submission.timeout-ms:10000}") int timeoutMs) {
+        this(builder.requestFactory(timeoutRequestFactory(timeoutMs)).build(), endpoint, mapper);
+    }
+
+    /** 测试缝（package-private）：直接注入已构建的 RestClient（MockRestServiceServer 绑定后 build） */
+    BaiduPushClient(RestClient restClient, String endpoint, ObjectMapper mapper) {
+        this.restClient = restClient;
         this.endpoint = endpoint;
         this.mapper = mapper;
+    }
+
+    /** spec §5.3：连接/读取超时各 timeoutMs——对齐 notify 通道 WebhookSender 的出网先例 */
+    static SimpleClientHttpRequestFactory timeoutRequestFactory(int timeoutMs) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofMillis(timeoutMs));
+        factory.setReadTimeout(Duration.ofMillis(timeoutMs));
+        return factory;
     }
 
     public record BaiduPushResponse(int success, int remain) {

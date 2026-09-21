@@ -3,6 +3,7 @@ package io.github.ghgongjin.sitemap.service.submission;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -36,11 +37,19 @@ public class GoogleSitemapClient {
     private final String baseUrl;
     private final ObjectMapper mapper;
 
+    @Autowired
     public GoogleSitemapClient(RestClient.Builder builder,
                                @Value("${sitemap.submission.gsc-base-url:" + DEFAULT_BASE_URL + "}")
                                String baseUrl,
-                               ObjectMapper mapper) {
-        this.restClient = builder.build();
+                               ObjectMapper mapper,
+                               @Value("${sitemap.submission.timeout-ms:10000}") int timeoutMs) {
+        this(builder.requestFactory(BaiduPushClient.timeoutRequestFactory(timeoutMs)).build(),
+                baseUrl, mapper);
+    }
+
+    /** 测试缝（package-private）：直接注入已构建的 RestClient（MockRestServiceServer 绑定后 build） */
+    GoogleSitemapClient(RestClient restClient, String baseUrl, ObjectMapper mapper) {
+        this.restClient = restClient;
         this.baseUrl = baseUrl;
         this.mapper = mapper;
     }

@@ -3,9 +3,13 @@ package io.github.ghgongjin.sitemap.service.submission;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -13,6 +17,10 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -31,7 +39,30 @@ class BaiduPushClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new BaiduPushClient(builder, BaiduPushClient.DEFAULT_ENDPOINT, new ObjectMapper());
+        // 走 package-private 测试缝：mock server 只能绑定在 builder 上，
+        // 而生产构造器会覆盖 builder 的 requestFactory，故此处直接注入绑定后 build 的客户端
+        client = new BaiduPushClient(builder.build(), BaiduPushClient.DEFAULT_ENDPOINT,
+                new ObjectMapper());
+    }
+
+    @Test
+    void shouldConfigureTenSecondTimeoutRequestFactoryWhenConstructedFromBuilder() {
+        // Given: spec §5.3 承诺连接/读取各 10s——构造时必须把带超时的请求工厂装进 builder
+        RestClient.Builder builder = mock(RestClient.Builder.class);
+        when(builder.requestFactory(any())).thenReturn(builder);
+        when(builder.build()).thenReturn(RestClient.builder().build());
+
+        // When
+        new BaiduPushClient(builder, BaiduPushClient.DEFAULT_ENDPOINT, new ObjectMapper(), 10_000);
+
+        // Then
+        ArgumentCaptor<ClientHttpRequestFactory> captor =
+                ArgumentCaptor.forClass(ClientHttpRequestFactory.class);
+        verify(builder).requestFactory(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(SimpleClientHttpRequestFactory.class);
+        SimpleClientHttpRequestFactory factory = (SimpleClientHttpRequestFactory) captor.getValue();
+        assertThat(ReflectionTestUtils.getField(factory, "connectTimeout")).isEqualTo(10_000);
+        assertThat(ReflectionTestUtils.getField(factory, "readTimeout")).isEqualTo(10_000);
     }
 
     @Test
