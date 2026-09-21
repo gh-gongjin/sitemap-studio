@@ -55,7 +55,7 @@ POST /auto/{id}/submission/run（手动「立即提交」）→ 同一 submitAft
 
 ## 4. 数据模型
 
-### 4.1 `push_config` 加 7 列
+### 4.1 `push_config` 加 8 列
 
 | 列 | 类型 | 约束 |
 |---|---|---|
@@ -66,6 +66,7 @@ POST /auto/{id}/submission/run（手动「立即提交」）→ 同一 submitAft
 | `gsc_site_url` | varchar(512) | 可空（GSC 已验证 property） |
 | `gsc_sitemap_url` | varchar(1024) | 可空（公网可访问完整地址） |
 | `gsc_service_account_json_enc` | varchar(24576) | 可空（整份 JSON 加密存储） |
+| `gsc_client_email` | varchar(256) | 可空，**明文**（非秘密：服务账号邮箱本就对 GSC 管理员可见）；保存时从已验证 JSON 提取 |
 
 **DDL 红线（v1.1.1 `skipped_pages` 500 教训）**：给存量表加 NOT NULL 列必须带库级默认值；配 schema 守卫测试（INFORMATION_SCHEMA COLUMN_DEFAULT 断言，照 `SeoReportSchemaDefaultsTest` 模式），保证旧库重启不炸。
 
@@ -84,7 +85,7 @@ detail 示例：`接收 23，超限 5，剩余配额 120` / `GSC 已受理` / `�
 - `gsc_site_url`：`sc-domain:` 前缀 或 http(s) URL 两种形态之一。
 - `gsc_sitemap_url`：绝对 http(s) URL。（Google 抓的是这个地址，本工具不代抓，无 SSRF 面。）
 - **凭据留空 = 沿用已存值**（同 SFTP 密码语义）。
-- 视图 `SubmissionView` 脱敏：只回显布尔 / baidu_site / property / sitemap URL / **从已存 JSON 解析出的 client_email**；token 与 JSON 明文永不出库到页面。
+- 视图 `SubmissionView` 脱敏：只回显布尔 / baidu_site / property / sitemap URL / **明文列 `gsc_client_email`**；token 与 JSON 明文永不出库到页面（client_email 走独立列而非现场解密 JSON，避免解密失败拖垮详情页）。
 
 ### 4.4 保存入口
 
