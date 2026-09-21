@@ -48,4 +48,15 @@ class SubmissionSchemaDefaultsTest {
                 Integer.class);
         assertThat(count).isEqualTo(1);
     }
+
+    @Test
+    void shouldCreateSiteIdIndexOnSubmissionLogWhenJpaBootstrap() {
+        // 列表查询按 site_id 过滤+倒序取最近 50 条：实体声明的 idx_submission_log_site_id 必须真实建出
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.INDEXES "
+                        + "WHERE UPPER(TABLE_NAME) = 'SUBMISSION_LOG' "
+                        + "AND UPPER(INDEX_NAME) = 'IDX_SUBMISSION_LOG_SITE_ID'",
+                Integer.class);
+        assertThat(count).isPositive();
+    }
 }
