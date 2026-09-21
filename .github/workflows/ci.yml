@@ -24,15 +24,108 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build image
         run: docker build -t sitemap-studio:ci .
-      - name: Smoke test the container
+      - name: Smoke test container user and data volume
+        shell: bash
         run: |
-          docker run -d --name smoke -p 8080:8080 sitemap-studio:ci
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8080/ -o /dev/null; then
-              echo "container is serving"; docker inspect --format '{{.State.Health.Status}}' smoke; exit 0
+          set -Eeuo pipefail
+
+          container="smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          data_volume="${container}-data"
+          temp_dir="$(mktemp -d)"
+          username="smoke${GITHUB_RUN_ID}"
+          password="Smoke${GITHUB_RUN_ID}9"
+
+          cleanup() {
+            docker rm -f "$container" >/dev/null 2>&1 || true
+            docker volume rm "$data_volume" >/dev/null 2>&1 || true
+            rm -rf "$temp_dir"
+          }
+          trap cleanup EXIT
+
+          wait_for_app() {
+            for _ in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8080/ -o /dev/null; then
+                echo "container is serving"
+                return 0
+              fi
+              sleep 5
+            done
+            echo "container did not become healthy"
+            docker logs "$container"
+            return 1
+          }
+
+          assert_non_root() {
+            local uid
+            uid="$(docker exec "$container" id -u)"
+            if [[ "$uid" != "1001" ]]; then
+              echo "non-root assertion failed: expected uid 1001, got $uid"
+              return 1
             fi
-            sleep 5
-          done
-          echo "container did not become healthy"
-          docker logs smoke
-          exit 1
+            echo "non-root assertion passed (uid $uid)"
+          }
+
+          csrf_token() {
+            python3 -c 'import re, sys; html = open(sys.argv[1], encoding="utf-8").read(); match = re.search(r"<input(?=[^>]*\bname=\"_csrf\")(?=[^>]*\bvalue=\"([^\"]+)\")[^>]*>", html); print(match.group(1) if match else ""); sys.exit(0 if match else 1)' "$1"
+          }
+
+          docker volume create "$data_volume" >/dev/null
+          docker run -d --name "$container" -p 8080:8080 \
+            --mount "type=volume,source=$data_volume,target=/app/data" \
+            sitemap-studio:ci >/dev/null
+          wait_for_app
+          assert_non_root
+
+          curl -fsS -c "$temp_dir/register.cookies" \
+            http://127.0.0.1:8080/register -o "$temp_dir/register.html"
+          register_csrf="$(csrf_token "$temp_dir/register.html")" || {
+            echo "registration assertion failed: CSRF token was not rendered"
+            exit 1
+          }
+          register_status="$(curl -sS -o "$temp_dir/register-response.html" \
+            -D "$temp_dir/register-headers" -w '%{http_code}' \
+            -b "$temp_dir/register.cookies" -c "$temp_dir/register.cookies" \
+            --data-urlencode "_csrf=$register_csrf" \
+            --data-urlencode "username=$username" \
+            --data-urlencode "password=$password" \
+            --data-urlencode "confirmPassword=$password" \
+            http://127.0.0.1:8080/register)"
+          if [[ "$register_status" != "302" ]] || ! grep -qi 'Location: .*login?registered=1' "$temp_dir/register-headers"; then
+            echo "registration assertion failed: expected redirect to /login?registered=1, got HTTP $register_status"
+            cat "$temp_dir/register-response.html"
+            exit 1
+          fi
+          echo "registration assertion passed"
+
+          docker rm -f "$container" >/dev/null
+          docker run -d --name "$container" -p 8080:8080 \
+            --mount "type=volume,source=$data_volume,target=/app/data" \
+            sitemap-studio:ci >/dev/null
+          wait_for_app
+          assert_non_root
+
+          curl -fsS -c "$temp_dir/login.cookies" \
+            http://127.0.0.1:8080/login -o "$temp_dir/login.html"
+          login_csrf="$(csrf_token "$temp_dir/login.html")" || {
+            echo "login assertion failed: CSRF token was not rendered after restart"
+            exit 1
+          }
+          login_status="$(curl -sS -o "$temp_dir/login-response.html" \
+            -D "$temp_dir/login-headers" -w '%{http_code}' \
+            -b "$temp_dir/login.cookies" -c "$temp_dir/login.cookies" \
+            --data-urlencode "_csrf=$login_csrf" \
+            --data-urlencode "username=$username" \
+            --data-urlencode "password=$password" \
+            http://127.0.0.1:8080/login)"
+          if [[ "$login_status" != "302" ]]; then
+            echo "volume persistence assertion failed: saved account could not log in after container replacement (HTTP $login_status)"
+            cat "$temp_dir/login-response.html"
+            exit 1
+          fi
+          protected_status="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -b "$temp_dir/login.cookies" http://127.0.0.1:8080/auto)"
+          if [[ "$protected_status" != "200" ]]; then
+            echo "volume persistence assertion failed: authenticated /auto returned HTTP $protected_status"
+            exit 1
+          fi
+          echo "volume persistence assertion passed (registered account can log in after container replacement)"
