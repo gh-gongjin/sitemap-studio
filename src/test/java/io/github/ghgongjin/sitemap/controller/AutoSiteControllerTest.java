@@ -656,6 +656,18 @@ class AutoSiteControllerTest {
     }
 
     @Test
+    void shouldFlashErrorWhenRunSubmissionThrowsIllegalArgument() throws Exception {
+        // Given：与 runPush（flashOutcome）对齐——IAE/SecurityException 转 flashError，不得裸 500
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(submissionService.submit(1L)).thenThrow(new IllegalArgumentException("提交通道未配置"));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/run"))
+                .andExpect(redirectedUrl("/auto/1"))
+                .andExpect(flash().attribute("flashError", "提交通道未配置"));
+    }
+
+    @Test
     void shouldReturn404WhenSubmissionRunOnForeignSite() throws Exception {
         // Given: requireOwned 语义——他人站点 findOwned 一律 empty
         when(autoSiteService.findOwned(999L, USER_ID)).thenReturn(Optional.empty());

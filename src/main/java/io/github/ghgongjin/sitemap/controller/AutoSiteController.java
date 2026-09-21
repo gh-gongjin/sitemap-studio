@@ -181,11 +181,16 @@ public class AutoSiteController {
     @PostMapping("/{id}/submission/run")
     public String runSubmission(@PathVariable Long id, RedirectAttributes redirect) {
         requireOwned(id, SecurityUtils.currentUserId());
-        SubmissionOutcome outcome = searchEngineSubmissionService.submit(id);
-        if (outcome.success()) {
-            redirect.addFlashAttribute("flash", "auto.submission.flash.submitted");
-        } else {
-            redirect.addFlashAttribute("flashError", outcome.detail());
+        // 异常面与 runPush 的 flashOutcome 对齐：IAE/SecurityException 转 flash error，不裸 500
+        try {
+            SubmissionOutcome outcome = searchEngineSubmissionService.submit(id);
+            if (outcome.success()) {
+                redirect.addFlashAttribute("flash", "auto.submission.flash.submitted");
+            } else {
+                redirect.addFlashAttribute("flashError", outcome.detail());
+            }
+        } catch (IllegalArgumentException | SecurityException e) {
+            flashError(redirect, e);
         }
         return "redirect:" + detailPath(id);
     }
