@@ -84,6 +84,30 @@ class GoogleServiceAccountTest {
     }
 
     @Test
+    void shouldRejectWhenTokenUriSchemeIsHttp() {
+        assertThatThrownBy(() -> GoogleServiceAccount.parse(json("service_account",
+                "a@b.c", "http://oauth2.googleapis.com/token", pem)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("oauth2.googleapis.com");
+    }
+
+    @Test
+    void shouldRejectWhenTokenUriHostIsLookAlike() {
+        assertThatThrownBy(() -> GoogleServiceAccount.parse(json("service_account",
+                "a@b.c", "https://oauth2.googleapis.com.evil.com/token", pem)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("oauth2.googleapis.com");
+    }
+
+    @Test
+    void shouldRejectWhenTokenUriHasNoScheme() {
+        assertThatThrownBy(() -> GoogleServiceAccount.parse(json("service_account",
+                "a@b.c", "oauth2.googleapis.com/token", pem)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("oauth2.googleapis.com");
+    }
+
+    @Test
     void shouldRejectWhenPrivateKeyNotParseable() {
         assertThatThrownBy(() -> GoogleServiceAccount.parse(json("service_account",
                 "a@b.c", "https://oauth2.googleapis.com/token", "-----BEGIN PRIVATE KEY-----\n###\n-----END PRIVATE KEY-----")))
