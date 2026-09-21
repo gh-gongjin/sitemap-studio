@@ -10,6 +10,8 @@ public enum SubmissionErrorCode {
     BAIDU_REJECTED,
     /** GSC 授权端点拒绝 JWT 断言（服务账号 JSON 问题） */
     GSC_TOKEN_REJECTED,
+    /** GSC API 返回 401（access token 无效或凭据/授权已失效） */
+    GSC_UNAUTHORIZED,
     /** GSC 返回 403（服务账号未加入站点用户） */
     GSC_NOT_A_SITE_USER,
     /** GSC API 其他非 2xx */

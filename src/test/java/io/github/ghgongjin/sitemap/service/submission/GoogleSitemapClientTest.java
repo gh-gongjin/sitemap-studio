@@ -158,8 +158,23 @@ class GoogleSitemapClientTest {
     }
 
     @Test
-    void shouldThrowNotASiteUserWhenApiReturns403() throws Exception {
+    void shouldThrowUnauthorizedWhenApiReturns401() throws Exception {
+        // Given: 401 = access token 无效/过期，属凭据与授权类，不得混入 GSC_API_REJECTED
         server.expect(requestTo(TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"ya29.tok\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(SUBMIT_URL)).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        // When & Then
+        assertThatThrownBy(() -> client.submitSitemap(account,
+                "sc-domain:example.com", "https://example.com/sitemap.xml"))
+                .isInstanceOf(SubmissionClientException.class)
+                .satisfies(e -> assertThat(((SubmissionClientException) e).errorCode())
+                        .isEqualTo(SubmissionErrorCode.GSC_UNAUTHORIZED))
+                .hasMessageContaining("凭据");
+    }
+
+    @Test
+    void shouldThrowNotASiteUserWhenApiReturns403() throws Exception {        server.expect(requestTo(TOKEN_URL))
                 .andRespond(withSuccess("{\"access_token\":\"ya29.tok\"}", MediaType.APPLICATION_JSON));
         server.expect(requestTo(SUBMIT_URL)).andRespond(withStatus(HttpStatus.FORBIDDEN));
 

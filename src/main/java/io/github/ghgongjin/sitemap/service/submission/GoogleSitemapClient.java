@@ -69,6 +69,10 @@ public class GoogleSitemapClient {
                     .toBodilessEntity();
         } catch (RestClientResponseException e) {
             int status = e.getStatusCode().value();
+            if (status == 401) {
+                throw new SubmissionClientException(SubmissionErrorCode.GSC_UNAUTHORIZED,
+                        "GSC 认证失败（HTTP 401），凭据或授权可能已失效，请重新保存服务账号 JSON", e);
+            }
             if (status == 403) {
                 throw new SubmissionClientException(SubmissionErrorCode.GSC_NOT_A_SITE_USER,
                         "服务账号未被加入该 GSC 站点（HTTP 403），请在 GSC「用户和权限」中添加该账号", e);
