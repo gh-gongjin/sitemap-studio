@@ -2,13 +2,17 @@ package io.github.ghgongjin.sitemap.service.push;
 
 import io.github.ghgongjin.sitemap.entity.PushConfig;
 import io.github.ghgongjin.sitemap.entity.PushLog;
+import io.github.ghgongjin.sitemap.entity.SubmissionLog;
 import io.github.ghgongjin.sitemap.repository.PushConfigRepository;
 import io.github.ghgongjin.sitemap.repository.PushLogRepository;
+import io.github.ghgongjin.sitemap.repository.SubmissionLogRepository;
 import io.github.ghgongjin.sitemap.service.CredentialCipher;
+import io.github.ghgongjin.sitemap.service.submission.GoogleServiceAccount;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -39,15 +43,23 @@ public class PushConfigService {
     private static final int PRIVATE_KEY_MAX_LENGTH = 4096;
     private static final int PASSWORD_MAX_LENGTH = 512;
 
+    static final String SUBMISSION_ONLY_HOST = "_submission_only_";
+    /** 明文服务账号 JSON 上限：列宽 24576 覆盖 密文膨胀(iv+tag+base64) 后的余量 */
+    private static final int SERVICE_ACCOUNT_JSON_MAX = 16384;
+    private static final Pattern BAIDU_TOKEN_PATTERN = Pattern.compile("[A-Za-z0-9_-]{8,64}");
+
     private final PushConfigRepository configRepository;
     private final PushLogRepository logRepository;
+    private final SubmissionLogRepository submissionLogRepository;
     private final CredentialCipher credentialCipher;
 
     public PushConfigService(PushConfigRepository configRepository,
                              PushLogRepository logRepository,
+                             SubmissionLogRepository submissionLogRepository,
                              CredentialCipher credentialCipher) {
         this.configRepository = configRepository;
         this.logRepository = logRepository;
+        this.submissionLogRepository = submissionLogRepository;
         this.credentialCipher = credentialCipher;
     }
 
@@ -99,10 +111,67 @@ public class PushConfigService {
         return siteId == null ? List.of() : logRepository.findBySiteIdOrderByIdDesc(siteId);
     }
 
+    /**
+     * 保存搜索引擎提交设置；凭据留空沿用已存值；坏凭据入口即拒
+     */
+    @Transactional
+    public PushConfig saveSubmission(Long siteId, SubmissionSettings settings) {
+        String baiduSite = requireBaiduSite(settings.baiduEnabled(), settings.baiduSite());
+        String baiduToken = trimToNull(settings.baiduToken(), 64, "百度 token");
+        if (baiduToken != null && !BAIDU_TOKEN_PATTERN.matcher(baiduToken).matches()) {
+            throw new IllegalArgumentException("百度 token 只能是 8-64 位字母、数字、下划线或短横线");
+        }
+        String gscSiteUrl = requireGscSiteUrl(settings.gscEnabled(), settings.gscSiteUrl());
+        String gscSitemapUrl = requireGscSitemapUrl(settings.gscEnabled(), settings.gscSitemapUrl());
+        String json = trimToNull(settings.serviceAccountJson(), SERVICE_ACCOUNT_JSON_MAX, "服务账号 JSON");
+        GoogleServiceAccount account = json == null ? null : GoogleServiceAccount.parse(json);
+
+        LocalDateTime now = LocalDateTime.now();
+        PushConfig config = configRepository.findBySiteId(siteId)
+                .orElseGet(() -> submissionOnlyConfig(siteId, now));
+        if (settings.baiduEnabled() && baiduToken == null && !hasText(config.getBaiduTokenEnc())) {
+            throw new IllegalArgumentException("请输入百度推送 token");
+        }
+        if (settings.gscEnabled() && json == null && !hasText(config.getGscServiceAccountJsonEnc())) {
+            throw new IllegalArgumentException("请粘贴服务账号 JSON");
+        }
+
+        config.setBaiduEnabled(settings.baiduEnabled());
+        config.setBaiduSite(baiduSite);
+        if (baiduToken != null) {
+            config.setBaiduTokenEnc(credentialCipher.encrypt(baiduToken));
+        }
+        config.setGscEnabled(settings.gscEnabled());
+        config.setGscSiteUrl(gscSiteUrl);
+        config.setGscSitemapUrl(gscSitemapUrl);
+        if (json != null) {
+            config.setGscServiceAccountJsonEnc(credentialCipher.encrypt(json));
+            config.setGscClientEmail(account.clientEmail());
+        }
+        config.setUpdatedAt(now);
+
+        PushConfig saved = configRepository.save(config);
+        log.info("搜索引擎提交设置已保存：siteId={}，百度={}，GSC={}",
+                siteId, settings.baiduEnabled(), settings.gscEnabled());
+        return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<SubmissionView> submissionView(Long siteId) {
+        return siteId == null ? Optional.empty()
+                : configRepository.findBySiteId(siteId).map(SubmissionView::of);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SubmissionLog> submissionLogs(Long siteId) {
+        return siteId == null ? List.of() : submissionLogRepository.findBySiteIdOrderByIdDesc(siteId);
+    }
+
     @Transactional
     public void delete(Long siteId) {
         configRepository.deleteBySiteId(siteId);
         logRepository.deleteBySiteId(siteId);
+        submissionLogRepository.deleteBySiteId(siteId);
     }
 
     private void applyCredential(PushConfig config, String authType, String password, String privateKey) {
@@ -207,5 +276,80 @@ public class PushConfigService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String requireBaiduSite(boolean enabled, String value) {
+        String site = trimToNull(value, 512, "百度站点");
+        if (site == null) {
+            if (enabled) {
+                throw new IllegalArgumentException("百度站点不能为空（如 https://example.com）");
+            }
+            return null;
+        }
+        URI uri = parseHttpUri(site, "百度站点");
+        if (uri.getPort() != -1 || uri.getQuery() != null || uri.getFragment() != null
+                || (uri.getPath() != null && !uri.getPath().isBlank() && !uri.getPath().equals("/"))) {
+            throw new IllegalArgumentException("百度站点必须是 https://example.com 形式（不含端口与路径）");
+        }
+        return uri.getScheme().toLowerCase(Locale.ROOT) + "://" + uri.getHost().toLowerCase(Locale.ROOT);
+    }
+
+    private String requireGscSiteUrl(boolean enabled, String value) {
+        String url = trimToNull(value, 512, "GSC 站点地址");
+        if (url == null) {
+            if (enabled) {
+                throw new IllegalArgumentException("GSC 站点地址不能为空（sc-domain:example.com 或 https://example.com/）");
+            }
+            return null;
+        }
+        if (url.startsWith("sc-domain:")) {
+            if (url.length() <= "sc-domain:".length() || url.substring("sc-domain:".length()).isBlank()) {
+                throw new IllegalArgumentException("sc-domain: 后必须跟域名");
+            }
+            return url;
+        }
+        parseHttpUri(url, "GSC 站点地址");
+        return url;
+    }
+
+    private String requireGscSitemapUrl(boolean enabled, String value) {
+        String url = trimToNull(value, 1024, "sitemap 公开 URL");
+        if (url == null) {
+            if (enabled) {
+                throw new IllegalArgumentException("sitemap 公开 URL 不能为空");
+            }
+            return null;
+        }
+        parseHttpUri(url, "sitemap 公开 URL");
+        return url;
+    }
+
+    private URI parseHttpUri(String value, String label) {
+        URI uri;
+        try {
+            uri = URI.create(value);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(label + "格式不正确");
+        }
+        if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                || uri.getHost() == null) {
+            throw new IllegalArgumentException(label + "必须是 http(s) 完整地址");
+        }
+        return uri;
+    }
+
+    /** 从未配过推送的站点：传输列用占位默认满足 not-null，推送表单保存时会被真实值覆盖 */
+    private PushConfig submissionOnlyConfig(Long siteId, LocalDateTime now) {
+        PushConfig config = new PushConfig();
+        config.setSiteId(siteId);
+        config.setEnabled(false);
+        config.setProtocol(PushProtocol.SFTP.name());
+        config.setHost(SUBMISSION_ONLY_HOST);
+        config.setPort(22);
+        config.setUsername("-");
+        config.setAuthType(AUTH_PASSWORD);
+        config.setSitemapFileName(DEFAULT_SITEMAP_FILE_NAME);
+        config.setCreatedAt(now);
+        return config;
     }
 }
