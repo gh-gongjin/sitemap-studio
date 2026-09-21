@@ -60,23 +60,26 @@ Java 21 · Spring Boot 3.5 · Thymeleaf · Spring Security · Jsoup · MyBatis-P
 
 ### Docker (recommended)
 
+The image is published to GHCR on every release — no clone, no build, no login:
+
+```sh
+docker run -d --name sitemap-studio -p 8080:8080 \
+  -v sitemap-studio-data:/app/data \
+  ghcr.io/gh-gongjin/sitemap-studio:1.1.2
+```
+
+`:latest` tracks the newest release. To build the image yourself instead:
+
 ```sh
 git clone https://github.com/gh-gongjin/sitemap-studio.git
 cd sitemap-studio
-docker compose up -d --build
-```
-
-Or without Compose:
-
-```sh
-docker build -t sitemap-studio .
-docker run -d --name sitemap-studio -p 8080:8080 \
-  -v sitemap-studio-data:/app/data sitemap-studio
+docker compose up -d --build      # or: docker build -t sitemap-studio .
 ```
 
 Open **http://localhost:8080**. Reports, scheduled sites and the encrypted push
 key live in the `sitemap-studio-data` volume, so they survive rebuilds and
-`docker rm`. Stop with `docker compose down` (add `-v` to wipe the data too).
+`docker rm`. Stop with `docker stop sitemap-studio` (plus `docker rm`), or
+`docker compose down` for the Compose path (add `-v` to wipe the data too).
 Optional: set `SITEMAP_PUSH_KEY` (Base64-encoded 32 bytes) in the environment to
 fix the push-credential encryption key instead of auto-generating one.
 
@@ -155,23 +158,26 @@ Java 21 · Spring Boot 3.5 · Thymeleaf · Spring Security · Jsoup · MyBatis-P
 
 ### Docker 部署（推荐）
 
+每次发版都会把镜像推到 GHCR，无需克隆、构建或登录：
+
+```sh
+docker run -d --name sitemap-studio -p 8080:8080 \
+  -v sitemap-studio-data:/app/data \
+  ghcr.io/gh-gongjin/sitemap-studio:1.1.2
+```
+
+`:latest` 始终指向最新正式版。想自己构建镜像则用：
+
 ```sh
 git clone https://github.com/gh-gongjin/sitemap-studio.git
 cd sitemap-studio
-docker compose up -d --build
-```
-
-不用 Compose 也可以：
-
-```sh
-docker build -t sitemap-studio .
-docker run -d --name sitemap-studio -p 8080:8080 \
-  -v sitemap-studio-data:/app/data sitemap-studio
+docker compose up -d --build      # 或 docker build -t sitemap-studio .
 ```
 
 启动后访问 **http://localhost:8080**。报告、定时更新站点与推送加密密钥都存在
 `sitemap-studio-data` 数据卷里，重建或删除容器都不会丢数据。停止用
-`docker compose down`（加 `-v` 会连数据一起清除）。可选：通过环境变量
+`docker stop sitemap-studio`（再 `docker rm`），Compose 路径用 `docker compose down`
+（加 `-v` 会连数据一起清除）。可选：通过环境变量
 `SITEMAP_PUSH_KEY`（Base64 编码的 32 字节）固定推送凭据加密密钥，否则首次启动自动生成。
 
 > 镜像内包含爬虫、报告与推送等全部能力；可选的 JS 页面渲染
