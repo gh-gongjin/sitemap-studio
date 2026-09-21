@@ -8,6 +8,7 @@ import io.github.ghgongjin.sitemap.service.submission.SearchEngineSubmissionServ
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
@@ -22,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -242,6 +244,24 @@ class AutoSiteUpdaterTest {
 
         // Then
         verify(submissionService).submit(1L);
+    }
+
+    @Test
+    void shouldPushBeforeSubmitToSearchEnginesWhenUpdateSucceeds() {
+        // Given
+        AutoSite site = site(1L);
+        when(enhancedService.generateSitemapWithProgress(anyString(), anyBoolean(), anyBoolean(), anyBoolean(),
+                anyString())).thenReturn(XML);
+        when(progressService.getTaskResult(anyString())).thenReturn(result(4));
+
+        // When
+        updater.update(site);
+
+        // Then：挂点语义——必须先推送、后提交（提交依赖远端已能访问最新 sitemap）
+        InOrder order = inOrder(pushService, submissionService);
+        order.verify(pushService).push(1L);
+        order.verify(submissionService).submit(1L);
+        order.verifyNoMoreInteractions();
     }
 
     @Test
