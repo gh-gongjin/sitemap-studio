@@ -329,7 +329,7 @@
     </form>
     <div class="push-actions outside">
       <div class="actions">
-        <form id="submissionRunForm" method="post" th:action="@{/auto/{id}/submission/run(id=${site.id})}">
+        <form id="submissionRunForm" class="js-submission-run" method="post" th:action="@{/auto/{id}/submission/run(id=${site.id})}">
           <button class="btn" type="submit" th:text="#{auto.submission.run}">立即提交</button>
         </form>
       </div>
@@ -667,6 +667,22 @@
   gscToggle.addEventListener("change", syncGsc);
   syncBaidu();
   syncGsc();
+
+  // 「立即提交」与「立即推送」同款自研 confirm 弹层（SitemapUI.confirm），禁原生 confirm
+  var submitNow = document.querySelector("form.js-submission-run");
+  if (submitNow) {
+    submitNow.addEventListener("submit", function (e) {
+      e.preventDefault();
+      SitemapUI.confirm({
+        title: /*[[#{auto.submission.confirm.run.title}]]*/ '立即提交',
+        message: /*[[#{auto.submission.confirm.run}]]*/ '确定把最新版本的站点地图提交给搜索引擎吗？',
+        confirmText: /*[[#{auto.submission.run}]]*/ '立即提交',
+        cancelText: /*[[#{common.cancel}]]*/ '取消'
+      }).then(function (ok) {
+        if (ok) submitNow.submit();
+      });
+    });
+  }
 })();
 </script>
 <script th:inline="javascript">

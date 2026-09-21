@@ -712,6 +712,38 @@ class AutoSiteControllerTest {
     }
 
     @Test
+    void shouldUseCustomConfirmDialogWhenSubmissionRunFormRendered() throws Exception {
+        // Given：与「立即推送」同款自研弹层断言（沿用 shouldUseCustomConfirmDialogWhenDeleteFormRendered 手法）
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.versions(1L)).thenReturn(List.of());
+
+        // When
+        Document page = render(get("/auto/1"));
+
+        // Then：立即提交表单挂 js-submission-run，确认弹层文案（中文资源束）内联进脚本
+        Element runForm = page.selectFirst("form#submissionRunForm");
+        assertThat(runForm.hasClass("js-submission-run")).isTrue();
+        assertThat(runForm.attr("action")).isEqualTo("/auto/1/submission/run");
+        // Thymeleaf JS 内联把非 ASCII 转义为反斜杠 u 十六进制形式——按同款转义比对中文文案
+        assertThat(page.html()).contains(jsEscaped("确定把最新版本的站点地图提交给搜索引擎吗？"));
+        assertThat(page.html()).contains("SitemapUI.confirm");
+        assertThat(page.html()).doesNotContain("window.confirm");
+    }
+
+    @Test
+    void shouldRenderSubmissionConfirmPromptInEnglishWhenEnglishLocale() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.versions(1L)).thenReturn(List.of());
+
+        // When
+        Document page = render(mvcEn, get("/auto/1"));
+
+        // Then：确认弹层文案随语言切换到英文（messages_en 成对守卫）
+        assertThat(page.html()).contains("Submit the latest sitemap version to search engines now?");
+    }
+
+    @Test
     void shouldRenderPushDefaultsWhenNoConfigSaved() throws Exception {
         // Given
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
@@ -914,6 +946,19 @@ class AutoSiteControllerTest {
         String html = target.perform(request).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return Jsoup.parse(html);
+    }
+
+    /** Thymeleaf th:inline="javascript" 对非 ASCII 字符的反斜杠 u 大写十六进制转义（断言中文内联文案用） */
+    private static String jsEscaped(String text) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : text.toCharArray()) {
+            if (c < 0x80) {
+                sb.append(c);
+            } else {
+                sb.append(String.format("\\u%04X", (int) c));
+            }
+        }
+        return sb.toString();
     }
 
     /**
