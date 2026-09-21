@@ -47,7 +47,7 @@ engines — from a single Spring Boot application.
 - **Sitemap generation** — depth-first crawler (Jsoup, optional headless browser for JS-rendered sites) producing valid XML sitemaps. Guest access: crawl, preview, and download need no account.
 - **Image / Video / News sitemaps** — optional inclusion of image, video, and Google News extensions per task.
 - **SEO reports** — per-crawl audit report with CSV / PDF / Word export. Reports are scoped to the signed-in user.
-- **Auto-update & push** — register a site, schedule re-crawls, and publish results via SFTP / FTP / FTPS, plus Bing/Yandex/IndexNow notification through IndexNow.
+- **Auto-update & push** — register a site, schedule re-crawls, and publish results via SFTP / FTP / FTPS, plus Bing/Yandex/IndexNow notification through IndexNow and Baidu push / Google Search Console submission.
 - **Account isolation** — Spring Security form login; users only ever see (and receive 404, not 403, for) their own reports and sites.
 - **Bilingual UI** — full Chinese / English i18n, dark-first responsive design.
 - **Zero external services** — embedded H2 file database, runs as a single jar or one Docker container.
@@ -145,7 +145,7 @@ Sitemap Studio 是一款免费、可自托管的站点地图生成器，提供�
 - **站点地图生成**：基于 Jsoup（可选无头浏览器渲染 JS 页面）的深度优先爬虫，输出合法 XML 站点地图。游客免登录即可爬取、预览、下载。
 - **图片 / 视频 / 新闻站点地图**：每个任务可选启用 image、video 与 Google News 扩展。
 - **SEO 报告**：每次爬取生成审计报告，支持 CSV / PDF / Word 导出；报告按登录账号隔离。
-- **自动更新与推送**：登记站点后可定时重新爬取，并通过 SFTP / FTP / FTPS 发布结果，支持 IndexNow 通知 Bing / Yandex 等搜索引擎。
+- **自动更新与推送**：登记站点后可定时重新爬取，并通过 SFTP / FTP / FTPS 发布结果，支持 IndexNow 通知 Bing / Yandex 等搜索引擎，以及百度主动推送 / Google Search Console 提交。
 - **账号隔离**：Spring Security 表单登录；用户只能看到本人报告与站点（越权访问返回 404 而非 403）。
 - **双语界面**：完整的中文 / 英文国际化，深色优先响应式设计。
 - **零外部依赖**：内嵌 H2 文件数据库，单一 jar 或一个 Docker 容器即可运行。
