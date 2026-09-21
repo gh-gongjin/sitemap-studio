@@ -731,8 +731,7 @@ class AutoSiteControllerTest {
     }
 
     @Test
-    void shouldRenderSubmissionConfirmPromptInEnglishWhenEnglishLocale() throws Exception {
-        // Given
+    void shouldRenderSubmissionConfirmPromptInEnglishWhenEnglishLocale() throws Exception {        // Given
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
         when(autoSiteService.versions(1L)).thenReturn(List.of());
 
@@ -741,6 +740,19 @@ class AutoSiteControllerTest {
 
         // Then：确认弹层文案随语言切换到英文（messages_en 成对守卫）
         assertThat(page.html()).contains("Submit the latest sitemap version to search engines now?");
+    }
+
+    @Test
+    void shouldUseUniformPropertyAccessStyleInSubmissionTemplate() throws Exception {
+        // Given：Thymeleaf 模板源文（非渲染 HTML）——th:with 风格统一是源文级约束
+        String template = new String(new org.springframework.core.io.ClassPathResource(
+                "templates/auto-detail.html").getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        // Then：submission 变量一律属性式访问，杜绝 `submission.xxx()` 方法式混用
+        assertThat(java.util.regex.Pattern.compile("submission\\.[A-Za-z]+\\(\\)")
+                .matcher(template).find()).isFalse();
+        // 属性式在 SpEL（record 支持）下真实可渲染——detail 渲染用例共同兜底
+        assertThat(template).contains("submission.baiduEnabled}");
     }
 
     @Test

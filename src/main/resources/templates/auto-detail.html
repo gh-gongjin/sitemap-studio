@@ -248,7 +248,7 @@
   </div>
 
   <div class="list-panel push-panel" id="submissionPanel"
-       th:with="sBaidu=${submission != null && submission.baiduEnabled()},
+       th:with="sBaidu=${submission != null && submission.baiduEnabled},
                 sSite=${submission != null && submission.baiduSite != null ? submission.baiduSite : ''},
                 sHasTok=${submission != null && submission.hasBaiduToken},
                 sGsc=${submission != null && submission.gscEnabled},
