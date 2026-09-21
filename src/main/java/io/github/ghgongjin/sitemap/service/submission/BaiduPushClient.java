@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -18,7 +17,6 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.List;
 
 /**
@@ -46,7 +44,8 @@ public class BaiduPushClient {
                            String endpoint,
                            ObjectMapper mapper,
                            @Value("${sitemap.submission.timeout-ms:10000}") int timeoutMs) {
-        this(builder.requestFactory(timeoutRequestFactory(timeoutMs)).build(), endpoint, mapper);
+        this(builder.requestFactory(SubmissionHttp.timeoutRequestFactory(timeoutMs)).build(),
+                endpoint, mapper);
     }
 
     /** 测试缝（package-private）：直接注入已构建的 RestClient（MockRestServiceServer 绑定后 build） */
@@ -54,14 +53,6 @@ public class BaiduPushClient {
         this.restClient = restClient;
         this.endpoint = endpoint;
         this.mapper = mapper;
-    }
-
-    /** spec §5.3：连接/读取超时各 timeoutMs——对齐 notify 通道 WebhookSender 的出网先例 */
-    static SimpleClientHttpRequestFactory timeoutRequestFactory(int timeoutMs) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofMillis(timeoutMs));
-        factory.setReadTimeout(Duration.ofMillis(timeoutMs));
-        return factory;
     }
 
     public record BaiduPushResponse(int success, int remain) {

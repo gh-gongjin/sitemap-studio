@@ -43,7 +43,7 @@ public class GoogleSitemapClient {
                                String baseUrl,
                                ObjectMapper mapper,
                                @Value("${sitemap.submission.timeout-ms:10000}") int timeoutMs) {
-        this(builder.requestFactory(BaiduPushClient.timeoutRequestFactory(timeoutMs)).build(),
+        this(builder.requestFactory(SubmissionHttp.timeoutRequestFactory(timeoutMs)).build(),
                 baseUrl, mapper);
     }
 
