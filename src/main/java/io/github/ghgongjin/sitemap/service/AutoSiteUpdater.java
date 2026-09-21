@@ -6,6 +6,8 @@ import io.github.ghgongjin.sitemap.service.notify.SiteFailedEvent;
 import io.github.ghgongjin.sitemap.service.notify.SiteUpdatedEvent;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.SitemapPushService;
+import io.github.ghgongjin.sitemap.service.submission.SearchEngineSubmissionService;
+import io.github.ghgongjin.sitemap.service.submission.SubmissionOutcome;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -30,6 +32,7 @@ public class AutoSiteUpdater {
     private final CrawlProgressService progressService;
     private final SeoReportService seoReportService;
     private final SitemapPushService sitemapPushService;
+    private final SearchEngineSubmissionService searchEngineSubmissionService;
     private final ApplicationEventPublisher events;
 
     /**
@@ -45,6 +48,7 @@ public class AutoSiteUpdater {
             SeoReport report = saveSeoReport(taskId, site.getUrl(), site.getUserId());
             publishUpdatedEvent(site, report);
             pushLatestVersion(site);
+            submitToSearchEngines(site);
             return true;
         } catch (Exception e) {
             log.error("自动更新失败：{}，原因：{}", site.getUrl(), e.getMessage());
@@ -66,6 +70,20 @@ public class AutoSiteUpdater {
             }
         } catch (Exception e) {
             log.warn("自动更新后推送站点地图异常：{}，原因：{}", site.getUrl(), e.getMessage());
+        }
+    }
+
+    /**
+     * 搜索引擎提交与更新主流程完全隔离：提交异常不影响更新结果与站点状态
+     */
+    private void submitToSearchEngines(AutoSite site) {
+        try {
+            SubmissionOutcome outcome = searchEngineSubmissionService.submit(site.getId());
+            if (!outcome.success() && !outcome.skipped()) {
+                log.warn("自动更新后搜索引擎提交失败：{}，原因：{}", site.getUrl(), outcome.detail());
+            }
+        } catch (Exception e) {
+            log.warn("自动更新后搜索引擎提交异常：{}，原因：{}", site.getUrl(), e.getMessage());
         }
     }
 

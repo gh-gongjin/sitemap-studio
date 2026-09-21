@@ -16,6 +16,10 @@ import io.github.ghgongjin.sitemap.service.push.PushErrorCode;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.PushSettings;
 import io.github.ghgongjin.sitemap.service.push.SitemapPushService;
+import io.github.ghgongjin.sitemap.service.push.SubmissionSettings;
+import io.github.ghgongjin.sitemap.service.push.SubmissionView;
+import io.github.ghgongjin.sitemap.service.submission.SearchEngineSubmissionService;
+import io.github.ghgongjin.sitemap.service.submission.SubmissionOutcome;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -48,8 +52,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -80,6 +87,7 @@ class AutoSiteControllerTest {
     private AutoSiteService autoSiteService;
     private PushConfigService pushConfigService;
     private SitemapPushService sitemapPushService;
+    private SearchEngineSubmissionService submissionService;
     private MockMvc mvc;
     private MockMvc mvcEn;
 
@@ -92,9 +100,11 @@ class AutoSiteControllerTest {
         autoSiteService = mock(AutoSiteService.class);
         pushConfigService = mock(PushConfigService.class);
         sitemapPushService = mock(SitemapPushService.class);
+        submissionService = mock(SearchEngineSubmissionService.class);
+        // 控制器 @RequiredArgsConstructor：新依赖字段声明在最后，构造调用尾部同序追加
         AutoSiteController controller = new AutoSiteController(autoSiteService, pushConfigService,
                 sitemapPushService, mock(NotifySettingsService.class), mock(NotificationService.class),
-                mock(NotifyTestLimiter.class), new NotifyProperties());
+                mock(NotifyTestLimiter.class), new NotifyProperties(), submissionService);
 
         mvc = mockMvc(controller, Locale.SIMPLIFIED_CHINESE);
         mvcEn = mockMvc(controller, Locale.ENGLISH);
@@ -340,7 +350,8 @@ class AutoSiteControllerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/auto/1/run", "/auto/1/toggle", "/auto/1/delete",
-            "/auto/1/push/test", "/auto/1/push/run"})
+            "/auto/1/push/test", "/auto/1/push/run",
+            "/auto/1/submission/settings", "/auto/1/submission/run"})
     void shouldReturn404AndSkipWriteWhenSiteNotOwned(String path) throws Exception {
         // Given: 站点不存在或属于他人，findOwned 一律 empty
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.empty());
@@ -352,6 +363,7 @@ class AutoSiteControllerTest {
         verify(autoSiteService, never()).delete(any(), any());
         verifyNoInteractions(pushConfigService);
         verifyNoInteractions(sitemapPushService);
+        verifyNoInteractions(submissionService);
     }
 
     @Test
@@ -577,6 +589,83 @@ class AutoSiteControllerTest {
     }
 
     @Test
+    void shouldSaveSubmissionSettingsAndFlashWhenValid() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/settings")
+                        .param("baiduEnabled", "true")
+                        .param("baiduSite", "https://example.com")
+                        .param("baiduToken", "tok123456")
+                        .param("gscEnabled", "false"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("flash", "auto.submission.flash.saved"));
+        verify(pushConfigService).saveSubmission(eq(1L), argThat(settings ->
+                settings.baiduEnabled() && "https://example.com".equals(settings.baiduSite())));
+    }
+
+    @Test
+    void shouldFlashRawErrorWhenSubmissionValidationFails() throws Exception {
+        // Given: 非 message key 的校验原始文本经 flashError 原样透出
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        doThrow(new IllegalArgumentException("百度站点必须是 https://example.com 形式（不含端口与路径）"))
+                .when(pushConfigService).saveSubmission(anyLong(), any(SubmissionSettings.class));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/settings")
+                        .param("baiduEnabled", "true"))
+                .andExpect(redirectedUrl("/auto/1"))
+                .andExpect(flash().attribute("flashError",
+                        "百度站点必须是 https://example.com 形式（不含端口与路径）"));
+    }
+
+    @Test
+    void shouldFlashSubmittedWhenRunSubmissionSucceeds() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(submissionService.submit(1L)).thenReturn(SubmissionOutcome.success("已提交 2 个通道"));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/run"))
+                .andExpect(redirectedUrl("/auto/1"))
+                .andExpect(flash().attribute("flash", "auto.submission.flash.submitted"));
+    }
+
+    @Test
+    void shouldFlashErrorDetailWhenRunSubmissionFails() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(submissionService.submit(1L)).thenReturn(SubmissionOutcome.failure("百度：配额已用尽"));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/run"))
+                .andExpect(flash().attribute("flashError", "百度：配额已用尽"));
+    }
+
+    @Test
+    void shouldSkipFlashErrorWhenRunSubmissionSkipped() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(submissionService.submit(1L)).thenReturn(SubmissionOutcome.skipped("尚未配置搜索引擎提交"));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/run"))
+                .andExpect(flash().attribute("flashError", "尚未配置搜索引擎提交"));
+    }
+
+    @Test
+    void shouldReturn404WhenSubmissionRunOnForeignSite() throws Exception {
+        // Given: requireOwned 语义——他人站点 findOwned 一律 empty
+        when(autoSiteService.findOwned(999L, USER_ID)).thenReturn(Optional.empty());
+
+        // When & Then
+        mvc.perform(post("/auto/999/submission/run"))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(submissionService);
+    }
+
+    @Test
     void shouldExposePushConfigAndLogsWhenRenderingDetail() throws Exception {
         // Given
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
@@ -586,12 +675,17 @@ class AutoSiteControllerTest {
                 true, false, LocalDateTime.of(2026, 9, 18, 11, 0), "SUCCESS", null);
         when(pushConfigService.view(1L)).thenReturn(Optional.of(view));
         when(pushConfigService.logs(1L)).thenReturn(List.of());
+        SubmissionView submission = new SubmissionView(true, SITE, true, false, null, null, false, null);
+        when(pushConfigService.submissionView(1L)).thenReturn(Optional.of(submission));
+        when(pushConfigService.submissionLogs(1L)).thenReturn(List.of());
 
-        // When & Then
+        // When & Then: submission/submissionLogs 与 pushConfig/pushLogs 同路暴露给详情页
         mvc.perform(get("/auto/1"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("pushConfig", view))
-                .andExpect(model().attribute("pushLogs", List.of()));
+                .andExpect(model().attribute("pushLogs", List.of()))
+                .andExpect(model().attribute("submission", submission))
+                .andExpect(model().attribute("submissionLogs", List.of()));
     }
 
     @Test

@@ -4,6 +4,7 @@ import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.service.notify.SiteFailedEvent;
 import io.github.ghgongjin.sitemap.service.notify.SiteUpdatedEvent;
 import io.github.ghgongjin.sitemap.service.push.SitemapPushService;
+import io.github.ghgongjin.sitemap.service.submission.SearchEngineSubmissionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -44,6 +45,7 @@ class AutoSiteUpdaterTest {
     private CrawlProgressService progressService;
     private SeoReportService seoReportService;
     private SitemapPushService pushService;
+    private SearchEngineSubmissionService submissionService;
     private ApplicationEventPublisher events;
     private AutoSiteUpdater updater;
 
@@ -54,9 +56,10 @@ class AutoSiteUpdaterTest {
         progressService = mock(CrawlProgressService.class);
         seoReportService = mock(SeoReportService.class);
         pushService = mock(SitemapPushService.class);
+        submissionService = mock(SearchEngineSubmissionService.class);
         events = mock(ApplicationEventPublisher.class);
         updater = new AutoSiteUpdater(autoSiteService, enhancedService, progressService,
-                seoReportService, pushService, events);
+                seoReportService, pushService, submissionService, events);
         // recordSuccess 返回后 updater 会重读最新版本与失败站点，给默认桩
         when(autoSiteService.latestVersion(anyLong())).thenReturn(Optional.of(successVersion(1)));
         when(autoSiteService.recordFailure(anyLong(), any()))
@@ -224,6 +227,49 @@ class AutoSiteUpdaterTest {
 
         // Then
         verify(pushService, never()).push(anyLong());
+    }
+
+    @Test
+    void shouldSubmitAfterUpdateWhenPushSucceeded() {
+        // Given
+        AutoSite site = site(1L);
+        when(enhancedService.generateSitemapWithProgress(anyString(), anyBoolean(), anyBoolean(), anyBoolean(),
+                anyString())).thenReturn(XML);
+        when(progressService.getTaskResult(anyString())).thenReturn(result(4));
+
+        // When
+        updater.update(site);
+
+        // Then
+        verify(submissionService).submit(1L);
+    }
+
+    @Test
+    void shouldKeepSuccessWhenSubmissionThrows() {
+        // Given
+        AutoSite site = site(1L);
+        when(enhancedService.generateSitemapWithProgress(anyString(), anyBoolean(), anyBoolean(), anyBoolean(),
+                anyString())).thenReturn(XML);
+        when(progressService.getTaskResult(anyString())).thenReturn(result(4));
+        doThrow(new RuntimeException("submit down")).when(submissionService).submit(1L);
+
+        // When & Then: 提交异常不影响更新结果与站点状态
+        assertThat(updater.update(site)).isTrue();
+        verify(autoSiteService, never()).recordFailure(anyLong(), anyString());
+    }
+
+    @Test
+    void shouldNotSubmitWhenUpdateFailed() {
+        // Given
+        AutoSite site = site(1L);
+        when(enhancedService.generateSitemapWithProgress(anyString(), anyBoolean(), anyBoolean(), anyBoolean(),
+                anyString())).thenThrow(new RuntimeException("站点地图生成失败: 连接超时"));
+
+        // When
+        updater.update(site);
+
+        // Then
+        verify(submissionService, never()).submit(anyLong());
     }
 
     @Test
