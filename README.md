@@ -90,7 +90,7 @@ Requirements: JDK 21+ and Maven 3.9+ (`java -version`, `mvn --version`).
 
 ```sh
 mvn verify
-java -jar target/sitemap-studio-1.1.1.jar
+java -jar target/sitemap-studio-1.1.2.jar
 ```
 
 Open **http://localhost:8080**. On Windows you can run `start.bat`, which checks
@@ -184,7 +184,7 @@ docker run -d --name sitemap-studio -p 8080:8080 \
 
 ```sh
 mvn verify
-java -jar target/sitemap-studio-1.1.1.jar
+java -jar target/sitemap-studio-1.1.2.jar
 ```
 
 启动后访问 **http://localhost:8080**。Windows 下可直接运行 `start.bat`：脚本会
