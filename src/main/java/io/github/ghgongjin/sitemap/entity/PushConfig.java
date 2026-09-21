@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.ToString;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
 
@@ -72,6 +73,39 @@ public class PushConfig {
 
     @Column(name = "index_now_key", length = 64)
     private String indexNowKey;
+
+    @Column(name = "baidu_enabled", nullable = false)
+    @ColumnDefault("false")
+    private boolean baiduEnabled;
+
+    @Column(name = "baidu_site", length = 512)
+    private String baiduSite;
+
+    /** AES-256-GCM 加密后的百度主动推送 token（v1: 前缀） */
+    @ToString.Exclude
+    @Column(name = "baidu_token_enc", length = 4096)
+    private String baiduTokenEnc;
+
+    @Column(name = "gsc_enabled", nullable = false)
+    @ColumnDefault("false")
+    private boolean gscEnabled;
+
+    /** GSC 已验证资源：sc-domain:example.com 或 https://example.com/ */
+    @Column(name = "gsc_site_url", length = 512)
+    private String gscSiteUrl;
+
+    /** 公网可访问的 sitemap 完整地址（Google 抓的是它，不是本地文件） */
+    @Column(name = "gsc_sitemap_url", length = 1024)
+    private String gscSitemapUrl;
+
+    /** AES-256-GCM 加密后的服务账号 JSON（含私钥，绝不出页面） */
+    @ToString.Exclude
+    @Column(name = "gsc_service_account_json_enc", length = 24576)
+    private String gscServiceAccountJsonEnc;
+
+    /** 服务账号邮箱（非秘密，GSC 用户列表可见），保存时从已验证 JSON 提取 */
+    @Column(name = "gsc_client_email", length = 256)
+    private String gscClientEmail;
 
     @Column(name = "last_push_at")
     private LocalDateTime lastPushAt;
