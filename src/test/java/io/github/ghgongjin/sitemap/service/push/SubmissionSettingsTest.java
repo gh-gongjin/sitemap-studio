@@ -162,6 +162,25 @@ class SubmissionSettingsTest {
     }
 
     @Test
+    void shouldKeepStoredGscJsonWithoutRevalidationWhenFormJsonBlankOnUpdate() {
+        // Given：存量已加密凭据故意放不可解密密文——留空保存若触发重校验/重解密即抛错
+        PushConfig existing = new PushConfig();
+        existing.setSiteId(SITE_ID);
+        existing.setGscServiceAccountJsonEnc("v1:corrupted-not-a-real-cipher-text");
+        existing.setGscClientEmail("old@p.iam.gserviceaccount.com");
+        when(configRepository.findBySiteId(SITE_ID)).thenReturn(Optional.of(existing));
+
+        // When：表单启用 GSC 且站点/sitemap 合法，但 JSON 字段留空
+        PushConfig saved = service.saveSubmission(SITE_ID,
+                gscOnly("sc-domain:example.com", "https://example.com/sitemap.xml", "   "));
+
+        // Then：原样沿用已存密文与 client_email，不重写、不重校验旧值
+        assertThat(saved.getGscServiceAccountJsonEnc()).isEqualTo("v1:corrupted-not-a-real-cipher-text");
+        assertThat(saved.getGscClientEmail()).isEqualTo("old@p.iam.gserviceaccount.com");
+        assertThat(saved.isGscEnabled()).isTrue();
+    }
+
+    @Test
     void shouldAcceptBothSiteUrlShapesForGsc() {
         when(configRepository.findBySiteId(SITE_ID)).thenReturn(Optional.empty());
         PushConfig domain = service.saveSubmission(SITE_ID,

@@ -120,4 +120,30 @@ class GoogleServiceAccountTest {
         assertThatThrownBy(() -> GoogleServiceAccount.parse("<html>"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void shouldNotLeakPrivateKeyContentWhenJsonMalformed() {
+        // 回归守卫：Jackson 解析失败异常若拼入源文（e.getMessage()），私钥正文会随错误文案外泄
+        String keyBody = pem.substring(29, 89); // 私钥 PEM 主体连续片段（无换行）
+        String malformed = "{\"type\":\"service_account\",\"client_email\":\"a@b.c\","
+                + "\"token_uri\":\"https://oauth2.googleapis.com/token\","
+                + "\"private_key\":\"" + keyBody + "\n  \"broken-json!!";
+
+        assertThatThrownBy(() -> GoogleServiceAccount.parse(malformed))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageNotContaining(keyBody);
+    }
+
+    @Test
+    void shouldNotLeakPrivateKeyContentWhenKeyParsingFails() {
+        // 回归守卫：PKCS#8 解析失败文案只描述错误，不得回显私钥片段
+        String keyBody = pem.substring(29, 89);
+        String brokenPem = "-----BEGIN PRIVATE KEY-----\n" + keyBody + "@@invalid@@\n"
+                + "-----END PRIVATE KEY-----";
+
+        assertThatThrownBy(() -> GoogleServiceAccount.parse(
+                json("service_account", "a@b.c", "https://oauth2.googleapis.com/token", brokenPem)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageNotContaining(keyBody);
+    }
 }
