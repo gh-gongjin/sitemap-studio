@@ -4,11 +4,13 @@ import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.entity.PushConfig;
 import io.github.ghgongjin.sitemap.entity.PushLog;
+import io.github.ghgongjin.sitemap.entity.SubmissionLog;
 import io.github.ghgongjin.sitemap.entity.UserAccount;
 import io.github.ghgongjin.sitemap.repository.AutoSiteRepository;
 import io.github.ghgongjin.sitemap.repository.AutoSiteVersionRepository;
 import io.github.ghgongjin.sitemap.repository.PushConfigRepository;
 import io.github.ghgongjin.sitemap.repository.PushLogRepository;
+import io.github.ghgongjin.sitemap.repository.SubmissionLogRepository;
 import io.github.ghgongjin.sitemap.repository.UserAccountRepository;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.CrawlProgressService;
@@ -93,6 +95,19 @@ class VisualHarnessTest {
             </urlset>
             """;
 
+    /** 走查用服务账号 JSON：私钥段是占位文本，不含任何真实密钥材料 */
+    private static final String DEMO_SERVICE_ACCOUNT_JSON = """
+            {
+              "type": "service_account",
+              "project_id": "demo-project",
+              "private_key_id": "0000000000000000000000000000000000000000",
+              "private_key": "-----BEGIN PRIVATE KEY-----\\nDEMO-PLACEHOLDER-NOT-A-REAL-KEY\\n-----END PRIVATE KEY-----\\n",
+              "client_email": "sitemap-bot@demo-project.iam.gserviceaccount.com",
+              "client_id": "000000000000000000000",
+              "token_uri": "https://oauth2.googleapis.com/token"
+            }
+            """;
+
     private static final List<String> DEMO_FEED = List.of(
             "/", "/channel/start", "/help/faq", "/blog/release-notes", "/about",
             "/channel/deep-dive", "/blog/tuning-crawl", "/help/limits");
@@ -122,6 +137,9 @@ class VisualHarnessTest {
     private PushLogRepository pushLogRepository;
 
     @Autowired
+    private SubmissionLogRepository submissionLogRepository;
+
+    @Autowired
     private CredentialCipher credentialCipher;
 
     @Autowired
@@ -144,6 +162,7 @@ class VisualHarnessTest {
         seedSeoReports();
         long healthySiteId = seedAutoSites();
         seedPushDemo(healthySiteId);
+        seedSubmissionDemo(healthySiteId);
 
         progress.startTask("demo-fail", "http://127.0.0.1/", false, false);
         progress.failTask("demo-fail", "拒绝包含内网地址的主机");
@@ -165,6 +184,8 @@ class VisualHarnessTest {
         log.info("  auto  : {}/auto  （需登录，只见本人站点）", baseUrl);
         log.info("  autoD : {}/auto/{}  （需登录）", baseUrl, healthySiteId);
         log.info("  push  : {}/auto/{} (push panel, SFTP + IndexNow)", baseUrl, healthySiteId);
+        log.info("  submit: {}/auto/{} (submission panel, BAIDU + GSC；勿点「立即提交」确认，会真实出网)",
+                baseUrl, healthySiteId);
 
         assertThat(progress.getTaskResult("demo-done").getStatus()).isEqualTo("completed");
         assertThat(progress.getTaskResult("demo-fail").getStatus()).isEqualTo("failed");
@@ -173,6 +194,7 @@ class VisualHarnessTest {
         assertThat(autoSiteVersionRepository.countBySiteId(healthySiteId)).isEqualTo(3);
         assertThat(pushConfigRepository.count()).isEqualTo(2);
         assertThat(pushLogRepository.findBySiteIdOrderByIdDesc(healthySiteId)).hasSize(5);
+        assertThat(submissionLogRepository.findBySiteIdOrderByIdDesc(healthySiteId)).hasSize(5);
         // 播种数据都挂在走查账号名下：列表按归属过滤后应全部可见
         assertThat(seoReportService.recent(harnessUserId)).hasSize(2);
         assertThat(autoSiteService.listOwned(harnessUserId)).hasSize(3);
@@ -278,6 +300,14 @@ class VisualHarnessTest {
         sftp.setHostKeyFingerprint("SHA256:8f2ac41d7be54a2c8f0d6b1a9e4c7f2b8");
         sftp.setIndexNowEnabled(true);
         sftp.setIndexNowKey("9f3c1d7be54a2c8f0d6b1a9e4c7f2b83");
+        sftp.setBaiduEnabled(true);
+        sftp.setBaiduSite("https://demo.example.com");
+        sftp.setBaiduTokenEnc(credentialCipher.encrypt("demo-baidu-token-2026"));
+        sftp.setGscEnabled(true);
+        sftp.setGscSiteUrl("sc-domain:demo.example.com");
+        sftp.setGscSitemapUrl("https://demo.example.com/sitemap.xml");
+        sftp.setGscServiceAccountJsonEnc(credentialCipher.encrypt(DEMO_SERVICE_ACCOUNT_JSON));
+        sftp.setGscClientEmail("sitemap-bot@demo-project.iam.gserviceaccount.com");
         sftp.setLastPushAt(now.minusMinutes(20));
         sftp.setLastPushStatus(PushLog.STATUS_SUCCESS);
         sftp.setCreatedAt(now.minusDays(3));
@@ -315,6 +345,46 @@ class VisualHarnessTest {
         ftp.setCreatedAt(now.minusDays(2));
         ftp.setUpdatedAt(now.minusDays(2));
         pushConfigRepository.save(ftp);
+    }
+
+    /**
+     * 播种搜索引擎提交演示数据：提交开关与凭据密文挂在健康站点的 push_config 行上
+     * （见 seedPushDemo），这里只补提交日志，覆盖成功/失败两态与两个通道。
+     * 按时间正序保存，使页面「最近在前」的排序与真实行为一致。
+     * 注意：播种的是占位密文，走查时不要点「立即提交」的确认——那会真的向百度与 GSC 出网。
+     */
+    private void seedSubmissionDemo(long healthySiteId) {
+        LocalDateTime now = LocalDateTime.now();
+        submissionLogRepository.save(submissionLog(healthySiteId, 2, SubmissionLog.CHANNEL_BAIDU,
+                SubmissionLog.STATUS_FAILED, "BAIDU_REJECTED",
+                "百度拒绝提交：site 参数与 token 不匹配", 356, now.minusDays(1).minusHours(3)));
+        submissionLogRepository.save(submissionLog(healthySiteId, 2, SubmissionLog.CHANNEL_GSC,
+                SubmissionLog.STATUS_FAILED, "GSC_NOT_A_SITE_USER",
+                "Google 返回 403：服务账号未加入站点「用户和权限」", 1874, now.minusDays(1).minusHours(3)));
+        submissionLogRepository.save(submissionLog(healthySiteId, 3, SubmissionLog.CHANNEL_BAIDU,
+                SubmissionLog.STATUS_SUCCESS, null,
+                "提交 3 个地址，成功 3 个，当日剩余配额 1997", 412, now.minusMinutes(19)));
+        submissionLogRepository.save(submissionLog(healthySiteId, 3, SubmissionLog.CHANNEL_GSC,
+                SubmissionLog.STATUS_SUCCESS, null,
+                "已提交 sitemap：https://demo.example.com/sitemap.xml", 1216, now.minusMinutes(18)));
+        submissionLogRepository.save(submissionLog(healthySiteId, 3, SubmissionLog.CHANNEL_BAIDU,
+                SubmissionLog.STATUS_FAILED, "BAIDU_TRANSPORT",
+                "连接超时（已放弃，不自动重试）", 10021, now.minusMinutes(6)));
+    }
+
+    private static SubmissionLog submissionLog(long siteId, int versionNumber, String channel,
+                                               String status, String errorCode, String detail,
+                                               long durationMs, LocalDateTime createdAt) {
+        SubmissionLog log = new SubmissionLog();
+        log.setSiteId(siteId);
+        log.setVersionNumber(versionNumber);
+        log.setChannel(channel);
+        log.setStatus(status);
+        log.setErrorCode(errorCode);
+        log.setDetail(detail);
+        log.setDurationMs(durationMs);
+        log.setCreatedAt(createdAt);
+        return log;
     }
 
     private static PushLog pushLog(long siteId, int versionNumber, String status, String errorCode,
