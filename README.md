@@ -52,7 +52,7 @@ engines — from a single Spring Boot application.
 
 ## Features
 
-- **Sitemap generation** — depth-first crawler (Jsoup, optional headless browser for JS-rendered sites) producing valid XML sitemaps. Guest access: crawl, preview, and download need no account.
+- **Sitemap generation** — breadth-first crawler (Jsoup, optional headless browser for JS-rendered sites) producing valid XML sitemaps. Guest access: crawl, preview, and download need no account.
 - **Image / Video / News sitemaps** — optional inclusion of image, video, and Google News extensions per task.
 - **SEO reports** — per-crawl audit report with CSV / PDF / Word export. Reports are scoped to the signed-in user.
 - **Auto-update & push** — register a site, schedule re-crawls, and publish results via SFTP / FTP / FTPS, with IndexNow notification for Bing / Yandex.
@@ -151,7 +151,7 @@ Sitemap Studio 是一款免费、可自托管的站点地图生成器，提供�
 
 ## 功能特性
 
-- **站点地图生成**：基于 Jsoup（可选无头浏览器渲染 JS 页面）的深度优先爬虫，输出合法 XML 站点地图。游客免登录即可爬取、预览、下载。
+- **站点地图生成**：基于 Jsoup（可选无头浏览器渲染 JS 页面）的广度优先爬虫，输出合法 XML 站点地图。游客免登录即可爬取、预览、下载。
 - **图片 / 视频 / 新闻站点地图**：每个任务可选启用 image、video 与 Google News 扩展。
 - **SEO 报告**：每次爬取生成审计报告，支持 CSV / PDF / Word 导出；报告按登录账号隔离。
 - **自动更新与推送**：登记站点后可定时重新爬取，通过 SFTP / FTP / FTPS 发布结果，并支持 IndexNow 通知 Bing / Yandex 等搜索引擎。
