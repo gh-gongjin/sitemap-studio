@@ -40,6 +40,14 @@ engines — from a single Spring Boot application.
     <td align="center"><b>Auto-update · 定时更新站点</b></td>
     <td align="center"><b>Push · SFTP/FTP/FTPS + IndexNow</b></td>
   </tr>
+  <tr>
+    <td><img src="docs/images/submission-zh.jpg" alt="Search engine submission"></td>
+    <td><img src="docs/images/submission-confirm-zh.jpg" alt="Submit now confirmation"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Submission · 百度主动推送 + Search Console</b></td>
+    <td align="center"><b>Submit now · 立即提交确认与提交记录</b></td>
+  </tr>
 </table>
 
 ## Features
@@ -47,7 +55,8 @@ engines — from a single Spring Boot application.
 - **Sitemap generation** — depth-first crawler (Jsoup, optional headless browser for JS-rendered sites) producing valid XML sitemaps. Guest access: crawl, preview, and download need no account.
 - **Image / Video / News sitemaps** — optional inclusion of image, video, and Google News extensions per task.
 - **SEO reports** — per-crawl audit report with CSV / PDF / Word export. Reports are scoped to the signed-in user.
-- **Auto-update & push** — register a site, schedule re-crawls, and publish results via SFTP / FTP / FTPS, plus Bing/Yandex/IndexNow notification through IndexNow and Baidu push / Google Search Console submission.
+- **Auto-update & push** — register a site, schedule re-crawls, and publish results via SFTP / FTP / FTPS, with IndexNow notification for Bing / Yandex.
+- **Search engine submission** — after each successful push, or on demand, submit new and changed URLs to Baidu and the sitemap location to Google Search Console; the latest attempts are logged per site.
 - **Account isolation** — Spring Security form login; users only ever see (and receive 404, not 403, for) their own reports and sites.
 - **Bilingual UI** — full Chinese / English i18n, dark-first responsive design.
 - **Zero external services** — embedded H2 file database, runs as a single jar or one Docker container.
@@ -65,7 +74,7 @@ The image is published to GHCR on every release — no clone, no build, no login
 ```sh
 docker run -d --name sitemap-studio -p 8080:8080 \
   -v sitemap-studio-data:/app/data \
-  ghcr.io/gh-gongjin/sitemap-studio:1.1.2
+  ghcr.io/gh-gongjin/sitemap-studio:1.2.0
 ```
 
 `:latest` tracks the newest release. To build the image yourself instead:
@@ -93,7 +102,7 @@ Requirements: JDK 21+ and Maven 3.9+ (`java -version`, `mvn --version`).
 
 ```sh
 mvn verify
-java -jar target/sitemap-studio-1.1.2.jar
+java -jar target/sitemap-studio-1.2.0.jar
 ```
 
 Open **http://localhost:8080**. On Windows you can run `start.bat`, which checks
@@ -145,7 +154,8 @@ Sitemap Studio 是一款免费、可自托管的站点地图生成器，提供�
 - **站点地图生成**：基于 Jsoup（可选无头浏览器渲染 JS 页面）的深度优先爬虫，输出合法 XML 站点地图。游客免登录即可爬取、预览、下载。
 - **图片 / 视频 / 新闻站点地图**：每个任务可选启用 image、video 与 Google News 扩展。
 - **SEO 报告**：每次爬取生成审计报告，支持 CSV / PDF / Word 导出；报告按登录账号隔离。
-- **自动更新与推送**：登记站点后可定时重新爬取，并通过 SFTP / FTP / FTPS 发布结果，支持 IndexNow 通知 Bing / Yandex 等搜索引擎，以及百度主动推送 / Google Search Console 提交。
+- **自动更新与推送**：登记站点后可定时重新爬取，通过 SFTP / FTP / FTPS 发布结果，并支持 IndexNow 通知 Bing / Yandex 等搜索引擎。
+- **搜索引擎提交**：每次推送成功后（或在详情页点「立即提交」）向百度主动推送接口提交新增与修改的 URL，并向 Google Search Console 提交 sitemap 地址；每站保留最近的提交记录。
 - **账号隔离**：Spring Security 表单登录；用户只能看到本人报告与站点（越权访问返回 404 而非 403）。
 - **双语界面**：完整的中文 / 英文国际化，深色优先响应式设计。
 - **零外部依赖**：内嵌 H2 文件数据库，单一 jar 或一个 Docker 容器即可运行。
@@ -163,7 +173,7 @@ Java 21 · Spring Boot 3.5 · Thymeleaf · Spring Security · Jsoup · MyBatis-P
 ```sh
 docker run -d --name sitemap-studio -p 8080:8080 \
   -v sitemap-studio-data:/app/data \
-  ghcr.io/gh-gongjin/sitemap-studio:1.1.2
+  ghcr.io/gh-gongjin/sitemap-studio:1.2.0
 ```
 
 `:latest` 始终指向最新正式版。想自己构建镜像则用：
@@ -190,7 +200,7 @@ docker compose up -d --build      # 或 docker build -t sitemap-studio .
 
 ```sh
 mvn verify
-java -jar target/sitemap-studio-1.1.2.jar
+java -jar target/sitemap-studio-1.2.0.jar
 ```
 
 启动后访问 **http://localhost:8080**。Windows 下可直接运行 `start.bat`：脚本会

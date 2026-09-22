@@ -14,7 +14,7 @@
 
     <groupId>io.github.ghgongjin</groupId>
     <artifactId>sitemap-studio</artifactId>
-    <version>1.1.2</version>
+    <version>1.2.0</version>
     <name>sitemap-studio</name>
     <description>站点地图生成器 - 输入网址即可生成并下载站点地图文件</description>
 
