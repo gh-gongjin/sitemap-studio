@@ -4,6 +4,7 @@ import io.github.ghgongjin.sitemap.config.NotifyProperties;
 import io.github.ghgongjin.sitemap.entity.AutoSite;
 import io.github.ghgongjin.sitemap.entity.AutoSiteVersion;
 import io.github.ghgongjin.sitemap.entity.PushLog;
+import io.github.ghgongjin.sitemap.entity.SubmissionLog;
 import io.github.ghgongjin.sitemap.security.UserAccountDetails;
 import io.github.ghgongjin.sitemap.service.AutoSiteService;
 import io.github.ghgongjin.sitemap.service.AutoSiteValidationException;
@@ -16,6 +17,10 @@ import io.github.ghgongjin.sitemap.service.push.PushErrorCode;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.PushSettings;
 import io.github.ghgongjin.sitemap.service.push.SitemapPushService;
+import io.github.ghgongjin.sitemap.service.push.SubmissionSettings;
+import io.github.ghgongjin.sitemap.service.push.SubmissionView;
+import io.github.ghgongjin.sitemap.service.submission.SearchEngineSubmissionService;
+import io.github.ghgongjin.sitemap.service.submission.SubmissionOutcome;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -48,8 +53,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -80,6 +88,7 @@ class AutoSiteControllerTest {
     private AutoSiteService autoSiteService;
     private PushConfigService pushConfigService;
     private SitemapPushService sitemapPushService;
+    private SearchEngineSubmissionService submissionService;
     private MockMvc mvc;
     private MockMvc mvcEn;
 
@@ -92,9 +101,11 @@ class AutoSiteControllerTest {
         autoSiteService = mock(AutoSiteService.class);
         pushConfigService = mock(PushConfigService.class);
         sitemapPushService = mock(SitemapPushService.class);
+        submissionService = mock(SearchEngineSubmissionService.class);
+        // 控制器 @RequiredArgsConstructor：新依赖字段声明在最后，构造调用尾部同序追加
         AutoSiteController controller = new AutoSiteController(autoSiteService, pushConfigService,
                 sitemapPushService, mock(NotifySettingsService.class), mock(NotificationService.class),
-                mock(NotifyTestLimiter.class), new NotifyProperties());
+                mock(NotifyTestLimiter.class), new NotifyProperties(), submissionService);
 
         mvc = mockMvc(controller, Locale.SIMPLIFIED_CHINESE);
         mvcEn = mockMvc(controller, Locale.ENGLISH);
@@ -340,7 +351,8 @@ class AutoSiteControllerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"/auto/1/run", "/auto/1/toggle", "/auto/1/delete",
-            "/auto/1/push/test", "/auto/1/push/run"})
+            "/auto/1/push/test", "/auto/1/push/run",
+            "/auto/1/submission/settings", "/auto/1/submission/run"})
     void shouldReturn404AndSkipWriteWhenSiteNotOwned(String path) throws Exception {
         // Given: 站点不存在或属于他人，findOwned 一律 empty
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.empty());
@@ -352,6 +364,7 @@ class AutoSiteControllerTest {
         verify(autoSiteService, never()).delete(any(), any());
         verifyNoInteractions(pushConfigService);
         verifyNoInteractions(sitemapPushService);
+        verifyNoInteractions(submissionService);
     }
 
     @Test
@@ -577,6 +590,95 @@ class AutoSiteControllerTest {
     }
 
     @Test
+    void shouldSaveSubmissionSettingsAndFlashWhenValid() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/settings")
+                        .param("baiduEnabled", "true")
+                        .param("baiduSite", "https://example.com")
+                        .param("baiduToken", "tok123456")
+                        .param("gscEnabled", "false"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("flash", "auto.submission.flash.saved"));
+        verify(pushConfigService).saveSubmission(eq(1L), argThat(settings ->
+                settings.baiduEnabled() && "https://example.com".equals(settings.baiduSite())));
+    }
+
+    @Test
+    void shouldFlashRawErrorWhenSubmissionValidationFails() throws Exception {
+        // Given: 非 message key 的校验原始文本经 flashError 原样透出
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        doThrow(new IllegalArgumentException("百度站点必须是 http(s)://example.com 形式（不含端口与路径）"))
+                .when(pushConfigService).saveSubmission(anyLong(), any(SubmissionSettings.class));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/settings")
+                        .param("baiduEnabled", "true"))
+                .andExpect(redirectedUrl("/auto/1"))
+                .andExpect(flash().attribute("flashError",
+                        "百度站点必须是 http(s)://example.com 形式（不含端口与路径）"));
+    }
+
+    @Test
+    void shouldFlashSubmittedWhenRunSubmissionSucceeds() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(submissionService.submit(1L)).thenReturn(SubmissionOutcome.success("已提交 2 个通道"));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/run"))
+                .andExpect(redirectedUrl("/auto/1"))
+                .andExpect(flash().attribute("flash", "auto.submission.flash.submitted"));
+    }
+
+    @Test
+    void shouldFlashErrorDetailWhenRunSubmissionFails() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(submissionService.submit(1L)).thenReturn(SubmissionOutcome.failure("百度：配额已用尽"));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/run"))
+                .andExpect(flash().attribute("flashError", "百度：配额已用尽"));
+    }
+
+    @Test
+    void shouldSkipFlashErrorWhenRunSubmissionSkipped() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(submissionService.submit(1L)).thenReturn(SubmissionOutcome.skipped("尚未配置搜索引擎提交"));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/run"))
+                .andExpect(flash().attribute("flashError", "尚未配置搜索引擎提交"));
+    }
+
+    @Test
+    void shouldFlashErrorWhenRunSubmissionThrowsIllegalArgument() throws Exception {
+        // Given：与 runPush（flashOutcome）对齐——IAE/SecurityException 转 flashError，不得裸 500
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(submissionService.submit(1L)).thenThrow(new IllegalArgumentException("提交通道未配置"));
+
+        // When & Then
+        mvc.perform(post("/auto/1/submission/run"))
+                .andExpect(redirectedUrl("/auto/1"))
+                .andExpect(flash().attribute("flashError", "提交通道未配置"));
+    }
+
+    @Test
+    void shouldReturn404WhenSubmissionRunOnForeignSite() throws Exception {
+        // Given: requireOwned 语义——他人站点 findOwned 一律 empty
+        when(autoSiteService.findOwned(999L, USER_ID)).thenReturn(Optional.empty());
+
+        // When & Then
+        mvc.perform(post("/auto/999/submission/run"))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(submissionService);
+    }
+
+    @Test
     void shouldExposePushConfigAndLogsWhenRenderingDetail() throws Exception {
         // Given
         when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
@@ -586,12 +688,84 @@ class AutoSiteControllerTest {
                 true, false, LocalDateTime.of(2026, 9, 18, 11, 0), "SUCCESS", null);
         when(pushConfigService.view(1L)).thenReturn(Optional.of(view));
         when(pushConfigService.logs(1L)).thenReturn(List.of());
+        SubmissionView submission = new SubmissionView(true, SITE, true, false, null, null, false, null);
+        when(pushConfigService.submissionView(1L)).thenReturn(Optional.of(submission));
+        when(pushConfigService.submissionLogs(1L)).thenReturn(List.of());
 
-        // When & Then
+        // When & Then: submission/submissionLogs 与 pushConfig/pushLogs 同路暴露给详情页
         mvc.perform(get("/auto/1"))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("pushConfig", view))
-                .andExpect(model().attribute("pushLogs", List.of()));
+                .andExpect(model().attribute("pushLogs", List.of()))
+                .andExpect(model().attribute("submission", submission))
+                .andExpect(model().attribute("submissionLogs", List.of()));
+    }
+
+    @Test
+    void shouldRenderSubmissionPanelWhenDetailLoaded() throws Exception {
+        // Given：照本类既有 detail 渲染测试的桩（owned site + versions），补 submission 视图与空日志
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.versions(1L)).thenReturn(List.of());
+        when(pushConfigService.submissionView(1L)).thenReturn(Optional.of(new SubmissionView(
+                true, "https://example.com", true, false, "", "", false, null)));
+        when(pushConfigService.submissionLogs(1L)).thenReturn(List.of());
+        MvcResult result = mvc.perform(get("/auto/1"))
+                .andExpect(status().isOk())
+                .andReturn();
+        Document page = Jsoup.parse(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+
+        // Then：提交区块锚点齐备
+        assertThat(page.select("form#submissionForm")).hasSize(1);
+        assertThat(page.select("form#submissionRunForm")).hasSize(1);
+        assertThat(page.getElementById("submissionBaiduSite")).isNotNull();
+        assertThat(page.select("textarea[name=gscServiceAccountJson]")).hasSize(1);
+        // 凭据永不回显：token/JSON 明文不出现在渲染 HTML
+        assertThat(page.toString()).doesNotContain("v1:");
+    }
+
+    @Test
+    void shouldUseCustomConfirmDialogWhenSubmissionRunFormRendered() throws Exception {
+        // Given：与「立即推送」同款自研弹层断言（沿用 shouldUseCustomConfirmDialogWhenDeleteFormRendered 手法）
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.versions(1L)).thenReturn(List.of());
+
+        // When
+        Document page = render(get("/auto/1"));
+
+        // Then：立即提交表单挂 js-submission-run，确认弹层文案（中文资源束）内联进脚本
+        Element runForm = page.selectFirst("form#submissionRunForm");
+        assertThat(runForm.hasClass("js-submission-run")).isTrue();
+        assertThat(runForm.attr("action")).isEqualTo("/auto/1/submission/run");
+        // Thymeleaf JS 内联把非 ASCII 转义为反斜杠 u 十六进制形式——按同款转义比对中文文案
+        assertThat(page.html()).contains(jsEscaped("确定把最新版本的站点地图提交给搜索引擎吗？"));
+        assertThat(page.html()).contains("SitemapUI.confirm");
+        assertThat(page.html()).doesNotContain("window.confirm");
+    }
+
+    @Test
+    void shouldRenderSubmissionConfirmPromptInEnglishWhenEnglishLocale() throws Exception {
+        // Given
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.versions(1L)).thenReturn(List.of());
+
+        // When
+        Document page = render(mvcEn, get("/auto/1"));
+
+        // Then：确认弹层文案随语言切换到英文（messages_en 成对守卫）
+        assertThat(page.html()).contains("Submit the latest sitemap version to search engines now?");
+    }
+
+    @Test
+    void shouldUseUniformPropertyAccessStyleInSubmissionTemplate() throws Exception {
+        // Given：Thymeleaf 模板源文（非渲染 HTML）——th:with 风格统一是源文级约束
+        String template = new String(new org.springframework.core.io.ClassPathResource(
+                "templates/auto-detail.html").getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        // Then：submission 变量一律属性式访问，杜绝 `submission.xxx()` 方法式混用
+        assertThat(java.util.regex.Pattern.compile("submission\\.[A-Za-z]+\\(\\)")
+                .matcher(template).find()).isFalse();
+        // 属性式在 SpEL（record 支持）下真实可渲染——detail 渲染用例共同兜底
+        assertThat(template).contains("submission.baiduEnabled}");
     }
 
     @Test
@@ -727,7 +901,32 @@ class AutoSiteControllerTest {
         assertThat(badRow.selectFirst(".ld-state").hasClass("state-failed")).isTrue();
         assertThat(badRow.selectFirst(".ld-version").text()).isEqualTo("—");
         assertThat(badRow.selectFirst(".ld-index").text()).isEqualTo("—");
-        assertThat(page.select(".push-empty")).isEmpty();
+        // push 区块无空态（提交区块也带 .push-empty，故用 pushForm 兄弟选择器限定作用域）
+        assertThat(page.select("form#pushForm ~ .push-empty")).isEmpty();
+    }
+
+    @Test
+    void shouldRenderSubmissionLogRowsWhenLogsExist() throws Exception {
+        // Given：非空提交日志——th:each 行渲染此前从未被运行时求值（T8 移交补证）
+        when(autoSiteService.findOwned(1L, USER_ID)).thenReturn(Optional.of(site(true, "SUCCESS")));
+        when(autoSiteService.versions(1L)).thenReturn(List.of());
+        SubmissionLog baiduOk = submissionLog("BAIDU", "SUCCESS", "成功推送12条", 88L);
+        SubmissionLog gscBad = submissionLog("GSC", "FAILED", null, 1200L);
+        when(pushConfigService.submissionLogs(1L)).thenReturn(List.of(baiduOk, gscBad));
+
+        // When
+        Document page = render(get("/auto/1"));
+
+        // Then：两行日志，通道/状态/详情按列渲染；详情为空回显全角破折号
+        assertThat(page.select("#submissionLogTable tbody tr")).hasSize(2);
+        Element okRow = page.select("#submissionLogTable tbody tr").get(0);
+        assertThat(okRow.select("td").eachText())
+                .containsExactly("BAIDU", "SUCCESS", "成功推送12条", "2026-09-18 10:00");
+        Element badRow = page.select("#submissionLogTable tbody tr").get(1);
+        assertThat(badRow.select("td").eachText())
+                .containsExactly("GSC", "FAILED", "—", "2026-09-18 10:00");
+        // 有日志时提交区块空态文案不得出现
+        assertThat(page.select("#submissionPanel .push-empty")).isEmpty();
     }
 
     @Test
@@ -772,6 +971,19 @@ class AutoSiteControllerTest {
         String html = target.perform(request).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return Jsoup.parse(html);
+    }
+
+    /** Thymeleaf th:inline="javascript" 对非 ASCII 字符的反斜杠 u 大写十六进制转义（断言中文内联文案用） */
+    private static String jsEscaped(String text) {
+        StringBuilder sb = new StringBuilder();
+        for (char c : text.toCharArray()) {
+            if (c < 0x80) {
+                sb.append(c);
+            } else {
+                sb.append(String.format("\\u%04X", (int) c));
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -828,6 +1040,18 @@ class AutoSiteControllerTest {
         log.setErrorCode(errorCode);
         log.setDetail(detail);
         log.setIndexNowStatus(indexNowStatus);
+        log.setDurationMs(durationMs);
+        log.setCreatedAt(LocalDateTime.of(2026, 9, 18, 10, 0));
+        return log;
+    }
+
+    private SubmissionLog submissionLog(String channel, String status, String detail, long durationMs) {
+        SubmissionLog log = new SubmissionLog();
+        log.setSiteId(1L);
+        log.setVersionNumber(3);
+        log.setChannel(channel);
+        log.setStatus(status);
+        log.setDetail(detail);
         log.setDurationMs(durationMs);
         log.setCreatedAt(LocalDateTime.of(2026, 9, 18, 10, 0));
         return log;

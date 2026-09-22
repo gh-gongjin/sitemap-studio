@@ -3,6 +3,7 @@ package io.github.ghgongjin.sitemap.service.push;
 import io.github.ghgongjin.sitemap.entity.PushConfig;
 import io.github.ghgongjin.sitemap.repository.PushConfigRepository;
 import io.github.ghgongjin.sitemap.repository.PushLogRepository;
+import io.github.ghgongjin.sitemap.repository.SubmissionLogRepository;
 import io.github.ghgongjin.sitemap.service.CredentialCipher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,7 +45,7 @@ class PushConfigServiceTest {
         configRepository = mock(PushConfigRepository.class);
         logRepository = mock(PushLogRepository.class);
         cipher = new CredentialCipher("", tempDir.resolve("push.key").toString());
-        service = new PushConfigService(configRepository, logRepository, cipher);
+        service = new PushConfigService(configRepository, logRepository, mock(SubmissionLogRepository.class), cipher);
     }
 
     @Test

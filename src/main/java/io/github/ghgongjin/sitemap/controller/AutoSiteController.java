@@ -17,6 +17,9 @@ import io.github.ghgongjin.sitemap.service.push.PushConfigService;
 import io.github.ghgongjin.sitemap.service.push.PushOutcome;
 import io.github.ghgongjin.sitemap.service.push.PushSettings;
 import io.github.ghgongjin.sitemap.service.push.SitemapPushService;
+import io.github.ghgongjin.sitemap.service.push.SubmissionSettings;
+import io.github.ghgongjin.sitemap.service.submission.SearchEngineSubmissionService;
+import io.github.ghgongjin.sitemap.service.submission.SubmissionOutcome;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -59,6 +62,8 @@ public class AutoSiteController {
     private final NotificationService notificationService;
     private final NotifyTestLimiter notifyTestLimiter;
     private final NotifyProperties notifyProperties;
+    // @RequiredArgsConstructor：新依赖字段声明在全部现有字段的最末尾
+    private final SearchEngineSubmissionService searchEngineSubmissionService;
 
     @GetMapping
     public String list(Model model) {
@@ -153,6 +158,43 @@ public class AutoSiteController {
                 () -> sitemapPushService.push(id));
     }
 
+    @PostMapping("/{id}/submission/settings")
+    public String saveSubmissionSettings(@PathVariable Long id,
+                                         @RequestParam(value = "baiduEnabled", defaultValue = "false")
+                                         boolean baiduEnabled,
+                                         @RequestParam(value = "baiduSite", defaultValue = "") String baiduSite,
+                                         @RequestParam(value = "baiduToken", defaultValue = "") String baiduToken,
+                                         @RequestParam(value = "gscEnabled", defaultValue = "false")
+                                         boolean gscEnabled,
+                                         @RequestParam(value = "gscSiteUrl", defaultValue = "") String gscSiteUrl,
+                                         @RequestParam(value = "gscSitemapUrl", defaultValue = "") String gscSitemapUrl,
+                                         @RequestParam(value = "gscServiceAccountJson", defaultValue = "")
+                                         String gscServiceAccountJson,
+                                         RedirectAttributes redirect) {
+        requireOwned(id, SecurityUtils.currentUserId());
+        SubmissionSettings settings = new SubmissionSettings(baiduEnabled, baiduSite, baiduToken,
+                gscEnabled, gscSiteUrl, gscSitemapUrl, gscServiceAccountJson);
+        return mutate(redirect, "auto.submission.flash.saved", detailPath(id),
+                () -> pushConfigService.saveSubmission(id, settings));
+    }
+
+    @PostMapping("/{id}/submission/run")
+    public String runSubmission(@PathVariable Long id, RedirectAttributes redirect) {
+        requireOwned(id, SecurityUtils.currentUserId());
+        // 异常面与 runPush 的 flashOutcome 对齐：IAE/SecurityException 转 flash error，不裸 500
+        try {
+            SubmissionOutcome outcome = searchEngineSubmissionService.submit(id);
+            if (outcome.success()) {
+                redirect.addFlashAttribute("flash", "auto.submission.flash.submitted");
+            } else {
+                redirect.addFlashAttribute("flashError", outcome.detail());
+            }
+        } catch (IllegalArgumentException | SecurityException e) {
+            flashError(redirect, e);
+        }
+        return "redirect:" + detailPath(id);
+    }
+
     @PostMapping("/{id}/notify/settings")
     public String saveNotifySettings(@PathVariable Long id,
                                      @RequestParam(value = "notifyOnChange", defaultValue = "false") boolean notifyOnChange,
@@ -195,6 +237,8 @@ public class AutoSiteController {
         model.addAttribute("pushLogs", pushConfigService.logs(id));
         model.addAttribute("notify", notifySettingsService.view(id).orElse(null));
         model.addAttribute("notifyPrivateAllowed", notifyProperties.isAllowPrivateNetwork());
+        model.addAttribute("submission", pushConfigService.submissionView(id).orElse(null));
+        model.addAttribute("submissionLogs", pushConfigService.submissionLogs(id));
         return "auto-detail";
     }
 
