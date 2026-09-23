@@ -209,6 +209,18 @@ java -jar target/sitemap-studio-1.2.0.jar
 
 数据保存在 `./data/`（H2 文件数据库），删除该目录即可重置。
 
+### Docker 部署与备份 / Docker Deployment & Backup
+
+容器内数据位于 `/app/data`；修改端口：`-p 自定义端口:8080`。
+备份：`docker cp <container>:/app/data ./backup-data`。
+升级：拉取新镜像后用同一 `-v` 挂载启动即可保留数据。
+详见 [README Docker 章节](#docker--compose)。
+
+Data is stored at `/app/data` inside the container. Change the port with `-p <port>:8080`.
+Backup: `docker cp <container>:/app/data ./backup-data`.
+Upgrade: pull the new image and start with the same `-v` mount to keep data.
+See the [Docker section in README](#docker--compose) for details.
+
 ## 开发与测试
 
 ```sh
